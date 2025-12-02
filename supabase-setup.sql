@@ -5,6 +5,7 @@
 CREATE TABLE IF NOT EXISTS projects (
   name TEXT PRIMARY KEY,
   color TEXT NOT NULL DEFAULT 'gray',
+  tags JSONB NOT NULL DEFAULT '[]'::jsonb,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 

@@ -220,7 +220,7 @@ export default function App() {
         
         if (localNotes.length === 0) {
            setNotes([{ id: 1, title: 'Bienvenido a Ale Notes 🚀', category: 'General', updatedAt: new Date().toISOString(), blocks: [{ type: 'text', content: 'Tus notas ahora en la nube ☁️ (Listo para conectar Supabase)' }] }]);
-           setProjects([{ name: 'General', color: 'indigo' }, { name: 'Trabajo', color: 'blue' }, { name: 'Personal', color: 'emerald' }]);
+           setProjects([{ name: 'General', color: 'indigo', tags: [] }, { name: 'Trabajo', color: 'blue', tags: [] }, { name: 'Personal', color: 'emerald', tags: [] }]);
         } else {
            setNotes(localNotes);
            setProjects(localProjects);
@@ -328,7 +328,7 @@ export default function App() {
             blocks: n.blocks,
             updated_at: n.updatedAt || new Date().toISOString()
           }));
-          const projectUpdates = projects.map(p => ({ name: p.name, color: p.color }));
+          const projectUpdates = projects.map(p => ({ name: p.name, color: p.color, tags: p.tags || [] }));
 
           if (updates.length > 0) {
             const { error: err1 } = await supabase.from('notes').upsert(updates);
@@ -378,10 +378,26 @@ export default function App() {
 
   const activeNote = notes.find(n => n.id === activeNoteId);
   const getProjectColor = (projName) => { const proj = projects.find(p => p.name === projName); return proj ? proj.color : 'gray'; };
+  const getProjectTags = (projName) => { const proj = projects.find(p => p.name === projName); return proj?.tags || []; };
+  
+  // Obtener todas las tags únicas de todos los proyectos
+  const allTags = useMemo(() => {
+    const tagSet = new Set();
+    projects.forEach(proj => {
+      if (proj.tags && Array.isArray(proj.tags)) {
+        proj.tags.forEach(tag => tagSet.add(tag));
+      }
+    });
+    return Array.from(tagSet).sort();
+  }, [projects]);
+
   const filteredNotes = notes.filter(n => {
     const matchesSearch = n.title?.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesCategory = selectedCategory === 'Todas' || n.category === selectedCategory;
-    return matchesSearch && matchesCategory;
+    const noteProject = projects.find(p => p.name === n.category);
+    const noteTags = noteProject?.tags || [];
+    const matchesTags = selectedTags.length === 0 || selectedTags.some(tag => noteTags.includes(tag));
+    return matchesSearch && matchesCategory && matchesTags;
   });
 
   // Handlers
@@ -389,7 +405,51 @@ export default function App() {
     const newNote = { id: Date.now(), title: 'Nueva Nota', category: selectedCategory === 'Todas' ? 'General' : selectedCategory, updatedAt: new Date().toISOString(), blocks: [{ type: 'text', content: '' }] };
     setNotes([newNote, ...notes]); setActiveNoteId(newNote.id); setViewMode('notes'); if (window.innerWidth < 768) setIsSidebarOpen(false);
   };
-  const addProject = () => { if (newProjectName.trim()) { const trimmed = newProjectName.trim(); if (!projects.some(p => p.name === trimmed)) { const randomColor = COLOR_KEYS[Math.floor(Math.random() * COLOR_KEYS.length)]; setProjects([...projects, { name: trimmed, color: randomColor }]); setSelectedCategory(trimmed); setViewMode('notes'); } setNewProjectName(''); setIsCreatingProject(false); } };
+  const addProject = () => { 
+    if (newProjectName.trim()) { 
+      const trimmed = newProjectName.trim(); 
+      if (!projects.some(p => p.name === trimmed)) { 
+        const randomColor = COLOR_KEYS[Math.floor(Math.random() * COLOR_KEYS.length)]; 
+        setProjects([...projects, { name: trimmed, color: randomColor, tags: [] }]); 
+        setSelectedCategory(trimmed); 
+        setViewMode('notes'); 
+      } 
+      setNewProjectName(''); 
+      setIsCreatingProject(false); 
+    } 
+  };
+  
+  const addTagToProject = (projName, tag) => {
+    if (!tag.trim()) return;
+    const trimmedTag = tag.trim().toLowerCase();
+    setProjects(projects.map(p => {
+      if (p.name === projName) {
+        const currentTags = p.tags || [];
+        if (!currentTags.includes(trimmedTag)) {
+          return { ...p, tags: [...currentTags, trimmedTag] };
+        }
+      }
+      return p;
+    }));
+    setNewTagInput('');
+  };
+
+  const removeTagFromProject = (projName, tagToRemove) => {
+    setProjects(projects.map(p => {
+      if (p.name === projName) {
+        return { ...p, tags: (p.tags || []).filter(tag => tag !== tagToRemove) };
+      }
+      return p;
+    }));
+  };
+
+  const toggleTagFilter = (tag) => {
+    setSelectedTags(prev => 
+      prev.includes(tag) 
+        ? prev.filter(t => t !== tag)
+        : [...prev, tag]
+    );
+  };
   const cycleProjectColor = (e, projName) => { e.stopPropagation(); setProjects(projects.map(p => { if (p.name === projName) { const nextIdx = (COLOR_KEYS.indexOf(p.color) + 1) % COLOR_KEYS.length; return { ...p, color: COLOR_KEYS[nextIdx] }; } return p; })); };
   const deleteNote = async (e, id) => { 
     e.stopPropagation(); 
