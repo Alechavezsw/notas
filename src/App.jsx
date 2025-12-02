@@ -198,6 +198,8 @@ export default function App() {
   const [saveStatus, setSaveStatus] = useState('saved'); // 'saved', 'saving', 'error'
   const [deletedNoteIds, setDeletedNoteIds] = useState([]);
   const [deletedProjectNames, setDeletedProjectNames] = useState([]);
+  const [isSaving, setIsSaving] = useState(false);
+  const [lastSavedHash, setLastSavedHash] = useState('');
 
   // Cargar datos al inicio (desde Supabase o LocalStorage fallback si no hay key)
   useEffect(() => {
@@ -240,16 +242,23 @@ export default function App() {
       .on('postgres_changes', 
         { event: '*', schema: 'public', table: 'notes' },
         (payload) => {
+          // Ignorar eventos mientras estamos guardando para evitar loops
+          if (isSaving) return;
+          
           if (payload.eventType === 'INSERT') {
-            const newNote = { ...payload.new, id: Number(payload.new.id) };
+            const newNote = { ...payload.new, id: Number(payload.new.id), updatedAt: payload.new.updated_at || payload.new.updatedAt };
             setNotes(prev => {
               const exists = prev.find(n => n.id === newNote.id);
               if (exists) return prev;
-              return [newNote, ...prev];
+              return [newNote, ...prev].sort((a, b) => new Date(b.updatedAt || 0) - new Date(a.updatedAt || 0));
             });
           } else if (payload.eventType === 'UPDATE') {
-            const updatedNote = { ...payload.new, id: Number(payload.new.id) };
-            setNotes(prev => prev.map(n => n.id === updatedNote.id ? updatedNote : n));
+            const updatedNote = { ...payload.new, id: Number(payload.new.id), updatedAt: payload.new.updated_at || payload.new.updatedAt };
+            setNotes(prev => {
+              const updated = prev.map(n => n.id === updatedNote.id ? updatedNote : n);
+              // Reordenar por fecha de actualización
+              return updated.sort((a, b) => new Date(b.updatedAt || 0) - new Date(a.updatedAt || 0));
+            });
           } else if (payload.eventType === 'DELETE') {
             setNotes(prev => prev.filter(n => n.id !== Number(payload.old.id)));
           }
@@ -262,13 +271,20 @@ export default function App() {
       .on('postgres_changes',
         { event: '*', schema: 'public', table: 'projects' },
         (payload) => {
+          // Ignorar eventos mientras estamos guardando
+          if (isSaving) return;
+          
           if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
+            const updatedProject = { 
+              ...payload.new, 
+              tags: payload.new.tags || []
+            };
             setProjects(prev => {
-              const exists = prev.find(p => p.name === payload.new.name);
+              const exists = prev.find(p => p.name === updatedProject.name);
               if (exists) {
-                return prev.map(p => p.name === payload.new.name ? payload.new : p);
+                return prev.map(p => p.name === updatedProject.name ? updatedProject : p);
               }
-              return [...prev, payload.new];
+              return [...prev, updatedProject];
             });
           } else if (payload.eventType === 'DELETE') {
             setProjects(prev => prev.filter(p => p.name !== payload.old.name));
@@ -281,23 +297,31 @@ export default function App() {
       supabase.removeChannel(notesChannel);
       supabase.removeChannel(projectsChannel);
     };
-  }, [supabase, isLoading]);
+  }, [supabase, isLoading, isSaving]);
 
-  // Guardado Automático
+  // Guardado Automático con debounce mejorado
   useEffect(() => {
     if (isLoading) return; 
 
     const saveData = async () => {
+      // Crear hash de los datos actuales para evitar guardados innecesarios
+      const currentHash = JSON.stringify({ notes, projects, deletedNoteIds, deletedProjectNames });
+      if (currentHash === lastSavedHash && deletedNoteIds.length === 0 && deletedProjectNames.length === 0) {
+        return; // No hay cambios, no guardar
+      }
+
+      setIsSaving(true);
       setSaveStatus('saving');
       
       if (supabase) {
         try {
           // Eliminar notas que fueron borradas
           if (deletedNoteIds.length > 0) {
+            const idsToDelete = [...deletedNoteIds];
             const { error: deleteError } = await supabase
               .from('notes')
               .delete()
-              .in('id', deletedNoteIds);
+              .in('id', idsToDelete);
             
             if (deleteError) {
               console.error('Error deleting notes:', deleteError);
@@ -308,10 +332,11 @@ export default function App() {
 
           // Eliminar proyectos que fueron borrados
           if (deletedProjectNames.length > 0) {
+            const namesToDelete = [...deletedProjectNames];
             const { error: deleteProjError } = await supabase
               .from('projects')
               .delete()
-              .in('name', deletedProjectNames);
+              .in('name', namesToDelete);
             
             if (deleteProjError) {
               console.error('Error deleting projects:', deleteProjError);
@@ -335,6 +360,7 @@ export default function App() {
             if (err1) {
               console.error('Error saving notes:', err1);
               setSaveStatus('error');
+              setIsSaving(false);
               return;
             }
           }
@@ -344,26 +370,32 @@ export default function App() {
             if (err2) {
               console.error('Error saving projects:', err2);
               setSaveStatus('error');
+              setIsSaving(false);
               return;
             }
           }
           
+          setLastSavedHash(currentHash);
           setSaveStatus('saved');
         } catch (error) {
           console.error('Error saving data:', error);
           setSaveStatus('error');
+        } finally {
+          setIsSaving(false);
         }
       } else {
         // Fallback LocalStorage
         localStorage.setItem('alenotes_data_v2', JSON.stringify(notes));
         localStorage.setItem('alenotes_projects_v2', JSON.stringify(projects));
+        setLastSavedHash(currentHash);
         setTimeout(() => setSaveStatus('saved'), 500);
+        setIsSaving(false);
       }
     };
 
-    const timeoutId = setTimeout(saveData, 1000); 
+    const timeoutId = setTimeout(saveData, 1500); 
     return () => clearTimeout(timeoutId);
-  }, [notes, projects, isLoading, deletedNoteIds, deletedProjectNames]);
+  }, [notes, projects, isLoading, deletedNoteIds, deletedProjectNames, lastSavedHash]);
 
 
   const [activeNoteId, setActiveNoteId] = useState(null);
@@ -453,7 +485,16 @@ export default function App() {
         : [...prev, tag]
     );
   };
-  const cycleProjectColor = (e, projName) => { e.stopPropagation(); setProjects(projects.map(p => { if (p.name === projName) { const nextIdx = (COLOR_KEYS.indexOf(p.color) + 1) % COLOR_KEYS.length; return { ...p, color: COLOR_KEYS[nextIdx] }; } return p; })); };
+  const cycleProjectColor = (e, projName) => { 
+    e.stopPropagation(); 
+    setProjects(prev => prev.map(p => { 
+      if (p.name === projName) { 
+        const nextIdx = (COLOR_KEYS.indexOf(p.color) + 1) % COLOR_KEYS.length; 
+        return { ...p, color: COLOR_KEYS[nextIdx] }; 
+      } 
+      return p; 
+    })); 
+  };
   const deleteNote = async (e, id) => { 
     e.stopPropagation(); 
     const noteToDelete = notes.find(n => n.id === id);
@@ -479,11 +520,17 @@ export default function App() {
       }
     }
   };
-  const updateNoteTitle = (val) => { setNotes(notes.map(n => n.id === activeNoteId ? { ...n, title: val, updatedAt: new Date().toISOString() } : n)); };
-  const updateNoteCategory = (val) => { setNotes(notes.map(n => n.id === activeNoteId ? { ...n, category: val, updatedAt: new Date().toISOString() } : n)); };
+  const updateNoteTitle = (val) => { 
+    setNotes(prev => prev.map(n => n.id === activeNoteId ? { ...n, title: val, updatedAt: new Date().toISOString() } : n)); 
+  };
+  const updateNoteCategory = (val) => { 
+    setNotes(prev => prev.map(n => n.id === activeNoteId ? { ...n, category: val, updatedAt: new Date().toISOString() } : n)); 
+  };
   
   // Blocks helpers
-  const updateBlocks = (newBlocks) => { setNotes(notes.map(n => n.id === activeNoteId ? { ...n, blocks: newBlocks, updatedAt: new Date().toISOString() } : n)); };
+  const updateBlocks = (newBlocks) => { 
+    setNotes(prev => prev.map(n => n.id === activeNoteId ? { ...n, blocks: newBlocks, updatedAt: new Date().toISOString() } : n)); 
+  };
   const addBlock = (type) => { 
      if (!activeNote) return; 
      let blk;
