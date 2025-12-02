@@ -65,7 +65,7 @@ CREATE POLICY "Allow all operations on notes" ON notes
 ALTER PUBLICATION supabase_realtime ADD TABLE notes;
 ALTER PUBLICATION supabase_realtime ADD TABLE projects;
 
--- Migración: Agregar columna tags si la tabla ya existe (para proyectos existentes)
+-- Migración: Agregar columna tags si la tabla ya existe
 DO $$ 
 BEGIN
     IF NOT EXISTS (
