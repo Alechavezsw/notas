@@ -199,8 +199,6 @@ export default function App() {
   const [deletedNoteIds, setDeletedNoteIds] = useState([]);
   const [deletedProjectNames, setDeletedProjectNames] = useState([]);
   const [isSaving, setIsSaving] = useState(false);
-  const [lastSavedHash, setLastSavedHash] = useState('');
-  const [showSaveIndicator, setShowSaveIndicator] = useState(false);
 
   // Cargar datos al inicio (desde Supabase o LocalStorage fallback si no hay key)
   useEffect(() => {
@@ -264,15 +262,11 @@ export default function App() {
             setNotes(prev => {
               const exists = prev.find(n => n.id === newNote.id);
               if (exists) return prev;
-              return [newNote, ...prev].sort((a, b) => new Date(b.updatedAt || 0) - new Date(a.updatedAt || 0));
+              return [newNote, ...prev];
             });
           } else if (payload.eventType === 'UPDATE') {
             const updatedNote = { ...payload.new, id: Number(payload.new.id), updatedAt: payload.new.updated_at || payload.new.updatedAt };
-            setNotes(prev => {
-              const updated = prev.map(n => n.id === updatedNote.id ? updatedNote : n);
-              // Reordenar por fecha de actualización
-              return updated.sort((a, b) => new Date(b.updatedAt || 0) - new Date(a.updatedAt || 0));
-            });
+            setNotes(prev => prev.map(n => n.id === updatedNote.id ? updatedNote : n));
           } else if (payload.eventType === 'DELETE') {
             setNotes(prev => prev.filter(n => n.id !== Number(payload.old.id)));
           }
@@ -313,28 +307,13 @@ export default function App() {
     };
   }, [supabase, isLoading, isSaving]);
 
-  // Guardado Automático con debounce mejorado
+  // Guardado Automático simplificado
   useEffect(() => {
     if (isLoading) return; 
 
     const saveData = async () => {
-      // Crear hash de los datos actuales para evitar guardados innecesarios
-      const currentHash = JSON.stringify({ notes, projects, deletedNoteIds, deletedProjectNames });
-      if (currentHash === lastSavedHash && deletedNoteIds.length === 0 && deletedProjectNames.length === 0) {
-        return; // No hay cambios, no guardar
-      }
-
       setIsSaving(true);
       setSaveStatus('saving');
-      // Mostrar indicador solo después de 2 segundos para no interrumpir la escritura
-      let indicatorTimeout = setTimeout(() => {
-        setShowSaveIndicator(true);
-      }, 2000);
-      
-      const cleanup = () => {
-        setIsSaving(false);
-        clearTimeout(indicatorTimeout);
-      };
       
       if (supabase) {
         try {
@@ -346,9 +325,7 @@ export default function App() {
               .delete()
               .in('id', idsToDelete);
             
-            if (deleteError) {
-              console.error('Error deleting notes:', deleteError);
-            } else {
+            if (!deleteError) {
               setDeletedNoteIds([]);
             }
           }
@@ -361,9 +338,7 @@ export default function App() {
               .delete()
               .in('name', namesToDelete);
             
-            if (deleteProjError) {
-              console.error('Error deleting projects:', deleteProjError);
-            } else {
+            if (!deleteProjError) {
               setDeletedProjectNames([]);
             }
           }
@@ -379,57 +354,31 @@ export default function App() {
           const projectUpdates = projects.map(p => ({ name: p.name, color: p.color, tags: p.tags || [] }));
 
           if (updates.length > 0) {
-            const { error: err1 } = await supabase.from('notes').upsert(updates);
-            if (err1) {
-              console.error('Error saving notes:', err1);
-              setSaveStatus('error');
-              setShowSaveIndicator(true);
-              cleanup();
-              return;
-            }
+            await supabase.from('notes').upsert(updates);
           }
 
           if (projectUpdates.length > 0) {
-            const { error: err2 } = await supabase.from('projects').upsert(projectUpdates);
-            if (err2) {
-              console.error('Error saving projects:', err2);
-              setSaveStatus('error');
-              setShowSaveIndicator(true);
-              cleanup();
-              return;
-            }
+            await supabase.from('projects').upsert(projectUpdates);
           }
           
-          setLastSavedHash(currentHash);
           setSaveStatus('saved');
-          setShowSaveIndicator(false);
         } catch (error) {
           console.error('Error saving data:', error);
           setSaveStatus('error');
-          setShowSaveIndicator(true);
         } finally {
-          cleanup();
+          setIsSaving(false);
         }
       } else {
         // Fallback LocalStorage
         localStorage.setItem('alenotes_data_v2', JSON.stringify(notes));
         localStorage.setItem('alenotes_projects_v2', JSON.stringify(projects));
-        setLastSavedHash(currentHash);
-        clearTimeout(indicatorTimeout);
-        setTimeout(() => {
-          setSaveStatus('saved');
-          setShowSaveIndicator(false);
-        }, 500);
-        setIsSaving(false);
+        setTimeout(() => setSaveStatus('saved'), 500);
       }
     };
 
-    const timeoutId = setTimeout(saveData, 2000); 
-    return () => {
-      clearTimeout(timeoutId);
-      setShowSaveIndicator(false);
-    };
-  }, [notes, projects, isLoading, deletedNoteIds, deletedProjectNames, lastSavedHash]);
+    const timeoutId = setTimeout(saveData, 3000); 
+    return () => clearTimeout(timeoutId);
+  }, [notes, projects, isLoading, deletedNoteIds, deletedProjectNames]);
 
 
   const [activeNoteId, setActiveNoteId] = useState(null);
@@ -582,23 +531,11 @@ export default function App() {
 
   return (
     <div className="flex h-screen bg-gray-100 text-gray-800 font-sans overflow-hidden">
-      {/* Indicador de estado de guardado - menos intrusivo */}
+      {/* Indicador de estado de guardado */}
       <div className="fixed top-4 right-4 z-50 pointer-events-none">
-         {saveStatus === 'saving' && showSaveIndicator && (
-           <div className="bg-white/95 backdrop-blur shadow-sm px-2 py-1 rounded-full text-[10px] font-medium text-indigo-500 flex items-center border border-indigo-100 opacity-90">
-             <Loader2 size={10} className="animate-spin mr-1.5"/> Guardando...
-           </div>
-         )}
-         {saveStatus === 'error' && (
-           <div className="bg-red-100 px-2 py-1 rounded-full text-[10px] font-medium text-red-600 border border-red-200 animate-pulse">
-             Error
-           </div>
-         )}
-         {saveStatus === 'saved' && !isLoading && showSaveIndicator && (
-           <div className="bg-green-100 px-2 py-1 rounded-full text-[10px] font-medium text-green-600 border border-green-200 opacity-0 animate-fade-out">
-             Guardado
-           </div>
-         )}
+         {saveStatus === 'saving' && <div className="bg-white/90 backdrop-blur shadow-sm px-3 py-1 rounded-full text-xs font-medium text-indigo-600 flex items-center border border-indigo-100"><Loader2 size={12} className="animate-spin mr-2"/> Guardando...</div>}
+         {saveStatus === 'error' && <div className="bg-red-100 px-3 py-1 rounded-full text-xs font-medium text-red-600 border border-red-200">Error al guardar</div>}
+         {saveStatus === 'saved' && !isLoading && <div className="bg-green-100 px-3 py-1 rounded-full text-xs font-medium text-green-600 border border-green-200 opacity-0 transition-opacity duration-1000">Guardado</div>}
       </div>
 
       {isSidebarOpen && <div className="fixed inset-0 bg-black/20 z-20 md:hidden" onClick={() => setIsSidebarOpen(false)} />}
