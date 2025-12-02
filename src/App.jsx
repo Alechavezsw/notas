@@ -519,7 +519,60 @@ export default function App() {
           <a href="https://ale.cosechacreativa.com.ar/" target="_blank" rel="noopener noreferrer" className="w-full flex items-center space-x-3 px-3 py-2 rounded-lg transition-colors text-sm font-medium text-gray-600 hover:bg-gray-50 hover:text-indigo-600 group"><LinkIcon size={18} className="text-gray-400 group-hover:text-indigo-500" /><span>Herramientas</span><ExternalLink size={12} className="opacity-0 group-hover:opacity-100 ml-auto" /></a>
           <div className="flex items-center justify-between mt-6 mb-2 px-2"><div className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Proyectos</div><button onClick={() => setIsCreatingProject(true)} className="text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded p-1 transition-colors"><Plus size={14} /></button></div>
           {isCreatingProject && (<div className="px-2 mb-2"><div className="flex items-center gap-2 bg-gray-50 p-1 rounded-lg border border-indigo-200"><input autoFocus type="text" placeholder="Nombre..." value={newProjectName} onChange={(e) => setNewProjectName(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') addProject(); if (e.key === 'Escape') setIsCreatingProject(false); }} className="w-full bg-transparent text-sm px-2 focus:outline-none" /><button onClick={addProject} className="text-indigo-600 hover:bg-indigo-100 rounded p-1"><CheckSquare size={14} /></button></div></div>)}
-          <div className="max-h-48 overflow-y-auto space-y-1">{projects.map(proj => { const theme = COLOR_PALETTE[proj.color] || COLOR_PALETTE.gray; return (<button key={proj.name} onClick={() => { setSelectedCategory(proj.name); setViewMode('notes'); }} className={`w-full flex items-center space-x-3 px-3 py-2 rounded-lg transition-colors text-sm font-medium ${viewMode === 'notes' && selectedCategory === proj.name ? 'bg-indigo-50 text-indigo-700' : 'text-gray-600 hover:bg-gray-50'}`}><div onClick={(e) => cycleProjectColor(e, proj.name)} className={`w-3 h-3 rounded-full flex-shrink-0 cursor-pointer hover:scale-125 transition-transform ${theme.dot}`}></div><span className="truncate flex-1 text-left">{proj.name}</span></button>)})}</div>
+          <div className="max-h-48 overflow-y-auto space-y-1">{projects.map(proj => { 
+            const theme = COLOR_PALETTE[proj.color] || COLOR_PALETTE.gray; 
+            const projTags = proj.tags || [];
+            return (
+              <div key={proj.name} className="group">
+                <button onClick={() => { setSelectedCategory(proj.name); setViewMode('notes'); }} className={`w-full flex items-center space-x-3 px-3 py-2 rounded-lg transition-colors text-sm font-medium ${viewMode === 'notes' && selectedCategory === proj.name ? 'bg-indigo-50 text-indigo-700' : 'text-gray-600 hover:bg-gray-50'}`}>
+                  <div onClick={(e) => { e.stopPropagation(); cycleProjectColor(e, proj.name); }} className={`w-3 h-3 rounded-full flex-shrink-0 cursor-pointer hover:scale-125 transition-transform ${theme.dot}`}></div>
+                  <span className="truncate flex-1 text-left">{proj.name}</span>
+                  <button onClick={(e) => { e.stopPropagation(); setEditingProjectTags(editingProjectTags === proj.name ? null : proj.name); }} className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-indigo-600 p-1 transition-opacity"><Tag size={14} /></button>
+                </button>
+                {editingProjectTags === proj.name && (
+                  <div className="px-3 py-2 bg-gray-50 border-l-2 border-indigo-200 ml-3 mb-1 rounded-r">
+                    <div className="flex flex-wrap gap-1 mb-2">
+                      {projTags.map(tag => (
+                        <span key={tag} className="inline-flex items-center gap-1 px-2 py-0.5 bg-white text-xs rounded-full border border-gray-200">
+                          {tag}
+                          <button onClick={() => removeTagFromProject(proj.name, tag)} className="text-gray-400 hover:text-red-500"><X size={12} /></button>
+                        </span>
+                      ))}
+                    </div>
+                    <div className="flex gap-1">
+                      <input type="text" placeholder="Añadir etiqueta..." value={newTagInput} onChange={(e) => setNewTagInput(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') { addTagToProject(proj.name, newTagInput); } }} className="flex-1 text-xs px-2 py-1 bg-white border border-gray-200 rounded focus:outline-none focus:border-indigo-300" />
+                      <button onClick={() => addTagToProject(proj.name, newTagInput)} className="px-2 py-1 bg-indigo-100 text-indigo-600 rounded hover:bg-indigo-200 text-xs"><Plus size={12} /></button>
+                    </div>
+                  </div>
+                )}
+                {projTags.length > 0 && editingProjectTags !== proj.name && (
+                  <div className="px-3 py-1 flex flex-wrap gap-1">
+                    {projTags.slice(0, 2).map(tag => (
+                      <span key={tag} className="text-[10px] px-1.5 py-0.5 bg-gray-100 text-gray-600 rounded truncate max-w-[60px]">{tag}</span>
+                    ))}
+                    {projTags.length > 2 && <span className="text-[10px] text-gray-400">+{projTags.length - 2}</span>}
+                  </div>
+                )}
+              </div>
+            );
+          })}</div>
+          {allTags.length > 0 && (
+            <div className="px-4 pt-4 pb-2 border-t border-gray-100 mt-4">
+              <div className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Filtrar por etiquetas</div>
+              <div className="flex flex-wrap gap-1">
+                {allTags.map(tag => (
+                  <button key={tag} onClick={() => toggleTagFilter(tag)} className={`px-2 py-1 text-xs rounded-full transition-colors ${selectedTags.includes(tag) ? 'bg-indigo-100 text-indigo-700 border border-indigo-300' : 'bg-gray-100 text-gray-600 border border-gray-200 hover:bg-gray-200'}`}>
+                    {tag}
+                  </button>
+                ))}
+                {selectedTags.length > 0 && (
+                  <button onClick={() => setSelectedTags([])} className="px-2 py-1 text-xs rounded-full bg-red-100 text-red-600 border border-red-200 hover:bg-red-200">
+                    Limpiar
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
         </div>
         {viewMode === 'notes' && (<><div className="px-4 pt-4 pb-2 border-t border-gray-100 mt-2"><div className="relative"><Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={16} /><input type="text" placeholder="Buscar..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="w-full pl-9 pr-4 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-100 focus:border-indigo-300 transition-all" /></div></div><div className="flex-1 overflow-y-auto px-2 space-y-1 py-2">{filteredNotes.length === 0 ? (<div className="text-center py-10 text-gray-400 text-sm">{searchQuery ? 'Sin resultados' : 'Vacío'}</div>) : (filteredNotes.map(note => (<div key={note.id} onClick={() => { setActiveNoteId(note.id); if(window.innerWidth < 768) setIsSidebarOpen(false); }} className={`group flex items-center justify-between p-3 rounded-lg cursor-pointer transition-all duration-200 border border-transparent ${activeNoteId === note.id ? 'bg-indigo-50 border-indigo-100' : 'hover:bg-gray-50'}`}><div className="overflow-hidden flex-1 mr-2"><h3 className={`font-medium truncate ${activeNoteId === note.id ? 'text-indigo-900' : 'text-gray-700'}`}>{note.title || 'Sin título'}</h3><div className="flex items-center gap-2 mt-1"><NoteBadge colorKey={getProjectColor(note.category)}>{note.category}</NoteBadge><p className="text-xs text-gray-400 truncate">{new Date(note.updatedAt).toLocaleDateString()}</p></div></div><button onClick={(e) => deleteNote(e, note.id)} className={`p-1.5 rounded-md text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors ${activeNoteId === note.id ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}><Trash2 size={14} /></button></div>)))}</div></>)}
       </aside>
