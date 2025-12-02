@@ -196,6 +196,8 @@ export default function App() {
   const [projects, setProjects] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [saveStatus, setSaveStatus] = useState('saved'); // 'saved', 'saving', 'error'
+  const [deletedNoteIds, setDeletedNoteIds] = useState([]);
+  const [deletedProjectNames, setDeletedProjectNames] = useState([]);
 
   // Cargar datos al inicio (desde Supabase o LocalStorage fallback si no hay key)
   useEffect(() => {
@@ -280,10 +282,6 @@ export default function App() {
       supabase.removeChannel(projectsChannel);
     };
   }, [supabase, isLoading]);
-
-  // Guardar IDs de notas eliminadas para sincronizar con Supabase
-  const [deletedNoteIds, setDeletedNoteIds] = useState([]);
-  const [deletedProjectNames, setDeletedProjectNames] = useState([]);
 
   // Guardado Automático
   useEffect(() => {
