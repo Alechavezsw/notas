@@ -200,6 +200,7 @@ export default function App() {
   const [deletedProjectNames, setDeletedProjectNames] = useState([]);
   const [isSaving, setIsSaving] = useState(false);
   const [lastSavedHash, setLastSavedHash] = useState('');
+  const [showSaveIndicator, setShowSaveIndicator] = useState(false);
 
   // Cargar datos al inicio (desde Supabase o LocalStorage fallback si no hay key)
   useEffect(() => {
@@ -325,6 +326,10 @@ export default function App() {
 
       setIsSaving(true);
       setSaveStatus('saving');
+      // Mostrar indicador solo después de 2 segundos para no interrumpir la escritura
+      const indicatorTimeout = setTimeout(() => {
+        setShowSaveIndicator(true);
+      }, 2000);
       
       if (supabase) {
         try {
@@ -390,24 +395,33 @@ export default function App() {
           
           setLastSavedHash(currentHash);
           setSaveStatus('saved');
+          setShowSaveIndicator(false);
         } catch (error) {
           console.error('Error saving data:', error);
           setSaveStatus('error');
+          setShowSaveIndicator(true);
         } finally {
           setIsSaving(false);
+          clearTimeout(indicatorTimeout);
         }
       } else {
         // Fallback LocalStorage
         localStorage.setItem('alenotes_data_v2', JSON.stringify(notes));
         localStorage.setItem('alenotes_projects_v2', JSON.stringify(projects));
         setLastSavedHash(currentHash);
-        setTimeout(() => setSaveStatus('saved'), 500);
+        setTimeout(() => {
+          setSaveStatus('saved');
+          setShowSaveIndicator(false);
+        }, 500);
         setIsSaving(false);
       }
     };
 
-    const timeoutId = setTimeout(saveData, 1500); 
-    return () => clearTimeout(timeoutId);
+    const timeoutId = setTimeout(saveData, 2000); 
+    return () => {
+      clearTimeout(timeoutId);
+      setShowSaveIndicator(false);
+    };
   }, [notes, projects, isLoading, deletedNoteIds, deletedProjectNames, lastSavedHash]);
 
 
@@ -561,11 +575,23 @@ export default function App() {
 
   return (
     <div className="flex h-screen bg-gray-100 text-gray-800 font-sans overflow-hidden">
-      {/* Indicador de estado de guardado */}
+      {/* Indicador de estado de guardado - menos intrusivo */}
       <div className="fixed top-4 right-4 z-50 pointer-events-none">
-         {saveStatus === 'saving' && <div className="bg-white/90 backdrop-blur shadow-sm px-3 py-1 rounded-full text-xs font-medium text-indigo-600 flex items-center border border-indigo-100"><Loader2 size={12} className="animate-spin mr-2"/> Guardando...</div>}
-         {saveStatus === 'error' && <div className="bg-red-100 px-3 py-1 rounded-full text-xs font-medium text-red-600 border border-red-200">Error al guardar</div>}
-         {saveStatus === 'saved' && !isLoading && <div className="bg-green-100 px-3 py-1 rounded-full text-xs font-medium text-green-600 border border-green-200 opacity-0 transition-opacity duration-1000">Guardado</div>}
+         {saveStatus === 'saving' && showSaveIndicator && (
+           <div className="bg-white/95 backdrop-blur shadow-sm px-2 py-1 rounded-full text-[10px] font-medium text-indigo-500 flex items-center border border-indigo-100 opacity-90">
+             <Loader2 size={10} className="animate-spin mr-1.5"/> Guardando...
+           </div>
+         )}
+         {saveStatus === 'error' && (
+           <div className="bg-red-100 px-2 py-1 rounded-full text-[10px] font-medium text-red-600 border border-red-200 animate-pulse">
+             Error
+           </div>
+         )}
+         {saveStatus === 'saved' && !isLoading && showSaveIndicator && (
+           <div className="bg-green-100 px-2 py-1 rounded-full text-[10px] font-medium text-green-600 border border-green-200 opacity-0 animate-fade-out">
+             Guardado
+           </div>
+         )}
       </div>
 
       {isSidebarOpen && <div className="fixed inset-0 bg-black/20 z-20 md:hidden" onClick={() => setIsSidebarOpen(false)} />}

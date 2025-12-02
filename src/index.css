@@ -34,6 +34,15 @@
   .touch-manipulation {
     touch-action: manipulation;
   }
+  
+  @keyframes fade-out {
+    0% { opacity: 1; }
+    100% { opacity: 0; }
+  }
+  
+  .animate-fade-out {
+    animation: fade-out 1s ease-out forwards;
+  }
 }
 
 
