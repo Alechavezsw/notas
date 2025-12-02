@@ -327,9 +327,14 @@ export default function App() {
       setIsSaving(true);
       setSaveStatus('saving');
       // Mostrar indicador solo después de 2 segundos para no interrumpir la escritura
-      const indicatorTimeout = setTimeout(() => {
+      let indicatorTimeout = setTimeout(() => {
         setShowSaveIndicator(true);
       }, 2000);
+      
+      const cleanup = () => {
+        setIsSaving(false);
+        clearTimeout(indicatorTimeout);
+      };
       
       if (supabase) {
         try {
@@ -378,7 +383,8 @@ export default function App() {
             if (err1) {
               console.error('Error saving notes:', err1);
               setSaveStatus('error');
-              setIsSaving(false);
+              setShowSaveIndicator(true);
+              cleanup();
               return;
             }
           }
@@ -388,7 +394,8 @@ export default function App() {
             if (err2) {
               console.error('Error saving projects:', err2);
               setSaveStatus('error');
-              setIsSaving(false);
+              setShowSaveIndicator(true);
+              cleanup();
               return;
             }
           }
@@ -401,14 +408,14 @@ export default function App() {
           setSaveStatus('error');
           setShowSaveIndicator(true);
         } finally {
-          setIsSaving(false);
-          clearTimeout(indicatorTimeout);
+          cleanup();
         }
       } else {
         // Fallback LocalStorage
         localStorage.setItem('alenotes_data_v2', JSON.stringify(notes));
         localStorage.setItem('alenotes_projects_v2', JSON.stringify(projects));
         setLastSavedHash(currentHash);
+        clearTimeout(indicatorTimeout);
         setTimeout(() => {
           setSaveStatus('saved');
           setShowSaveIndicator(false);
