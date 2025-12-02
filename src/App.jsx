@@ -374,6 +374,9 @@ export default function App() {
   const [isCreatingProject, setIsCreatingProject] = useState(false);
   const [newProjectName, setNewProjectName] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('Todas');
+  const [selectedTags, setSelectedTags] = useState([]);
+  const [editingProjectTags, setEditingProjectTags] = useState(null);
+  const [newTagInput, setNewTagInput] = useState('');
   const [viewMode, setViewMode] = useState('notes');
 
   const activeNote = notes.find(n => n.id === activeNoteId);
