@@ -65,4 +65,15 @@ CREATE POLICY "Allow all operations on notes" ON notes
 ALTER PUBLICATION supabase_realtime ADD TABLE notes;
 ALTER PUBLICATION supabase_realtime ADD TABLE projects;
 
+-- Migración: Agregar columna tags si la tabla ya existe (para proyectos existentes)
+DO $$ 
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns 
+        WHERE table_name = 'projects' AND column_name = 'tags'
+    ) THEN
+        ALTER TABLE projects ADD COLUMN tags JSONB NOT NULL DEFAULT '[]'::jsonb;
+    END IF;
+END $$;
+
 
