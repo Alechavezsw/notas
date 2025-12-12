@@ -81,13 +81,33 @@ const NoteBadge = ({ children, colorKey = 'gray' }) => {
 const TextBlock = ({ content, onChange, placeholder = "Escribe algo aquí..." }) => {
   const editorRef = React.useRef(null);
   const [showFormatBar, setShowFormatBar] = React.useState(false);
+  const [isComposing, setIsComposing] = React.useState(false);
+
+  // Sincronizar contenido cuando cambia externamente
+  React.useEffect(() => {
+    if (editorRef.current && editorRef.current.innerHTML !== content) {
+      editorRef.current.innerHTML = content || '';
+    }
+  }, [content]);
 
   const handleInput = (e) => {
-    const html = e.target.innerHTML;
-    onChange(html);
+    if (!isComposing) {
+      const html = e.target.innerHTML;
+      onChange(html);
+    }
     // Auto-resize
     e.target.style.height = 'auto';
     e.target.style.height = e.target.scrollHeight + 'px';
+  };
+
+  const handleCompositionStart = () => {
+    setIsComposing(true);
+  };
+
+  const handleCompositionEnd = (e) => {
+    setIsComposing(false);
+    const html = e.target.innerHTML;
+    onChange(html);
   };
 
   const applyFormat = (command, value = null) => {
@@ -100,6 +120,12 @@ const TextBlock = ({ content, onChange, placeholder = "Escribe algo aquí..." })
 
   const handleFocus = () => {
     setShowFormatBar(true);
+    // Asegurar dirección correcta al enfocar
+    if (editorRef.current) {
+      editorRef.current.setAttribute('dir', 'ltr');
+      editorRef.current.style.direction = 'ltr';
+      editorRef.current.style.textAlign = 'left';
+    }
   };
 
   const handleBlur = () => {
@@ -176,13 +202,14 @@ const TextBlock = ({ content, onChange, placeholder = "Escribe algo aquí..." })
         onInput={handleInput}
         onFocus={handleFocus}
         onBlur={handleBlur}
-        dangerouslySetInnerHTML={{ __html: content }}
+        onCompositionStart={handleCompositionStart}
+        onCompositionEnd={handleCompositionEnd}
+        suppressContentEditableWarning={true}
         className="w-full bg-transparent resize-none focus:outline-none text-gray-700 leading-relaxed p-2 rounded hover:bg-gray-50 focus:bg-white transition-colors text-base md:text-sm min-h-[3rem]"
         style={{ 
           minHeight: '3rem',
           direction: 'ltr',
-          textAlign: 'left',
-          unicodeBidi: 'bidi-override'
+          textAlign: 'left'
         }}
         data-placeholder={placeholder}
       />
@@ -195,7 +222,6 @@ const TextBlock = ({ content, onChange, placeholder = "Escribe algo aquí..." })
         [contenteditable] {
           direction: ltr !important;
           text-align: left !important;
-          unicode-bidi: embed !important;
         }
         [contenteditable] * {
           direction: ltr !important;
