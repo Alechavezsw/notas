@@ -77,4 +77,15 @@ BEGIN
     END IF;
 END $$;
 
+-- Migración: Agregar columna pinned si la tabla ya existe
+DO $$ 
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns 
+        WHERE table_name = 'notes' AND column_name = 'pinned'
+    ) THEN
+        ALTER TABLE notes ADD COLUMN pinned BOOLEAN NOT NULL DEFAULT false;
+    END IF;
+END $$;
+
 
