@@ -7,7 +7,7 @@ import {
   User, Image as ImageIcon, UploadCloud, Grid, Layers, Tag,
   Link as LinkIcon, ExternalLink, Book, Tv, Plane, Dumbbell, Wrench,
   ShoppingCart, Heart, Map, AlertCircle, ListTodo, Loader2,
-  Bold, Underline
+  Bold, Underline, Italic, Strikethrough, List, Pin, PinOff
 } from 'lucide-react';
 
 // --- CONFIGURACIÓN SUPABASE ---
@@ -150,32 +150,89 @@ const TextBlock = ({ content, onChange, placeholder = "Escribe algo aquí..." })
 };
 
 const ImageBlock = ({ src, caption, onChange }) => {
-  const handleImageUpload = (e) => {
-    const file = e.target.files[0];
-    if (file) {
+  const fileInputRef = React.useRef(null);
+  const [isDragging, setIsDragging] = React.useState(false);
+
+  const handleImageUpload = (file) => {
+    if (file && file.type.startsWith('image/')) {
       const reader = new FileReader();
       reader.onloadend = () => { onChange({ src: reader.result, caption }); };
       reader.readAsDataURL(file);
     }
   };
+
+  const handleFileInput = (e) => {
+    const file = e.target.files[0];
+    if (file) handleImageUpload(file);
+  };
+
+  const handleDrop = (e) => {
+    e.preventDefault();
+    setIsDragging(false);
+    const file = e.dataTransfer.files[0];
+    if (file) handleImageUpload(file);
+  };
+
+  const handleDragOver = (e) => {
+    e.preventDefault();
+    setIsDragging(true);
+  };
+
+  const handleDragLeave = () => {
+    setIsDragging(false);
+  };
+
   if (!src) return (
-    <div className="my-6 p-6 md:p-8 border-2 border-dashed border-gray-300 rounded-xl bg-gray-50 flex flex-col items-center justify-center text-gray-400 hover:bg-indigo-50 hover:border-indigo-400 hover:text-indigo-500 transition-all cursor-pointer relative group touch-manipulation">
-      <input type="file" accept="image/*" onChange={handleImageUpload} className="absolute inset-0 opacity-0 cursor-pointer z-10" />
-      <div className="bg-white p-4 rounded-full shadow-sm mb-3 group-hover:scale-110 transition-transform"><UploadCloud size={32} /></div>
-      <span className="text-sm font-medium text-center">Toca para subir imagen</span>
+    <div 
+      onDrop={handleDrop}
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
+      className={`my-6 p-6 md:p-8 border-2 border-dashed rounded-xl flex flex-col items-center justify-center text-gray-400 transition-all cursor-pointer relative group touch-manipulation ${
+        isDragging 
+          ? 'border-indigo-500 bg-indigo-50 text-indigo-500 scale-105' 
+          : 'border-gray-300 bg-gray-50 hover:bg-indigo-50 hover:border-indigo-400 hover:text-indigo-500'
+      }`}
+      onClick={() => fileInputRef.current?.click()}
+    >
+      <input 
+        ref={fileInputRef}
+        type="file" 
+        accept="image/*" 
+        onChange={handleFileInput} 
+        className="hidden" 
+      />
+      <div className="bg-white p-4 rounded-full shadow-sm mb-3 group-hover:scale-110 transition-transform">
+        <UploadCloud size={32} />
+      </div>
+      <span className="text-sm font-medium text-center">
+        {isDragging ? 'Suelta la imagen aquí' : 'Arrastra una imagen o toca para subir'}
+      </span>
+      <span className="text-xs text-gray-400 mt-1">PNG, JPG, GIF hasta 10MB</span>
     </div>
   );
   return (
     <div className="my-6 group relative">
-      <div className="relative rounded-xl overflow-hidden shadow-sm border border-gray-100 bg-gray-50">
-        <img src={src} alt="Uploaded" className="w-full max-h-[500px] object-contain mx-auto" />
-        <div className="absolute top-3 right-3 opacity-100 md:opacity-0 group-hover:opacity-100 transition-opacity">
-            <label className="cursor-pointer bg-white/90 backdrop-blur text-gray-700 hover:text-indigo-600 px-3 py-1.5 rounded-full text-xs font-bold shadow-md border border-gray-200 flex items-center gap-1 transition-colors touch-manipulation">
-               <UploadCloud size={12} /> Cambiar <input type="file" accept="image/*" onChange={handleImageUpload} className="hidden" />
-            </label>
+      <div className="relative rounded-xl overflow-hidden shadow-md border border-gray-200 bg-gray-50 hover:shadow-lg transition-shadow">
+        <img src={src} alt={caption || "Imagen"} className="w-full max-h-[600px] object-contain mx-auto" />
+        <div className="absolute top-3 right-3 opacity-100 md:opacity-0 group-hover:opacity-100 transition-opacity flex gap-2">
+          <label className="cursor-pointer bg-white/95 backdrop-blur text-gray-700 hover:text-indigo-600 px-3 py-1.5 rounded-full text-xs font-bold shadow-md border border-gray-200 flex items-center gap-1 transition-colors touch-manipulation">
+            <UploadCloud size={12} /> Cambiar <input type="file" accept="image/*" onChange={handleFileInput} className="hidden" />
+          </label>
+          <button
+            onClick={() => onChange({ src: null, caption: '' })}
+            className="bg-white/95 backdrop-blur text-red-600 hover:text-red-700 px-3 py-1.5 rounded-full text-xs font-bold shadow-md border border-gray-200 flex items-center gap-1 transition-colors"
+          >
+            <X size={12} /> Eliminar
+          </button>
         </div>
       </div>
-      <input type="text" value={caption || ''} onChange={(e) => onChange({ src, caption: e.target.value })} placeholder="Leyenda..." className="w-full text-center mt-2 text-base md:text-sm text-gray-500 bg-transparent focus:outline-none placeholder-gray-300 italic" />
+      <input 
+        type="text" 
+        value={caption || ''} 
+        onChange={(e) => onChange({ src, caption: e.target.value })} 
+        placeholder="Agrega una leyenda..." 
+        className="w-full text-center mt-3 text-base md:text-sm text-gray-600 bg-transparent focus:outline-none focus:text-gray-900 placeholder-gray-400 border-b-2 border-transparent focus:border-indigo-300 transition-colors" 
+      />
     </div>
   );
 };
@@ -305,6 +362,7 @@ export default function App() {
             const formattedNotes = notesData.map(n => ({
               ...n, 
               id: Number(n.id),
+              pinned: n.pinned || false,
               updatedAt: n.updated_at || n.updatedAt || new Date().toISOString()
             }));
             setNotes(formattedNotes);
@@ -382,6 +440,7 @@ export default function App() {
           title: n.title,
           category: n.category,
           blocks: n.blocks,
+          pinned: n.pinned || false,
           updated_at: n.updatedAt || new Date().toISOString()
         }));
         const projectUpdates = currentProjects.map(p => ({ name: p.name, color: p.color, tags: p.tags || [] }));
@@ -457,20 +516,38 @@ export default function App() {
     return Array.from(tagSet).sort();
   }, [projects]);
 
-  const filteredNotes = notes.filter(n => {
-    const matchesSearch = n.title?.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesCategory = selectedCategory === 'Todas' || n.category === selectedCategory;
-    const noteProject = projects.find(p => p.name === n.category);
-    const noteTags = noteProject?.tags || [];
-    const matchesTags = selectedTags.length === 0 || selectedTags.some(tag => noteTags.includes(tag));
-    return matchesSearch && matchesCategory && matchesTags;
-  });
+  const filteredNotes = useMemo(() => {
+    const filtered = notes.filter(n => {
+      const matchesSearch = n.title?.toLowerCase().includes(searchQuery.toLowerCase());
+      const matchesCategory = selectedCategory === 'Todas' || n.category === selectedCategory;
+      const noteProject = projects.find(p => p.name === n.category);
+      const noteTags = noteProject?.tags || [];
+      const matchesTags = selectedTags.length === 0 || selectedTags.some(tag => noteTags.includes(tag));
+      return matchesSearch && matchesCategory && matchesTags;
+    });
+    // Ordenar: primero las fijadas, luego por fecha de actualización
+    return filtered.sort((a, b) => {
+      const aPinned = a.pinned ? 1 : 0;
+      const bPinned = b.pinned ? 1 : 0;
+      if (aPinned !== bPinned) return bPinned - aPinned;
+      return new Date(b.updatedAt || 0) - new Date(a.updatedAt || 0);
+    });
+  }, [notes, searchQuery, selectedCategory, selectedTags, projects]);
 
   // Handlers
   const createNote = () => {
-    const newNote = { id: Date.now(), title: 'Nueva Nota', category: selectedCategory === 'Todas' ? 'General' : selectedCategory, updatedAt: new Date().toISOString(), blocks: [{ type: 'text', content: '' }] };
+    const newNote = { id: Date.now(), title: 'Nueva Nota', category: selectedCategory === 'Todas' ? 'General' : selectedCategory, updatedAt: new Date().toISOString(), blocks: [{ type: 'text', content: '' }], pinned: false };
     setNotes([newNote, ...notes]); setActiveNoteId(newNote.id); setViewMode('notes'); if (window.innerWidth < 768) setIsSidebarOpen(false);
   };
+  
+  const togglePinNote = useCallback((e, noteId) => {
+    e.stopPropagation();
+    setNotes(prev => {
+      const updated = prev.map(n => n.id === noteId ? { ...n, pinned: !n.pinned } : n);
+      notesRef.current = updated;
+      return updated;
+    });
+  }, []);
   const addProject = () => { 
     if (newProjectName.trim()) { 
       const trimmed = newProjectName.trim(); 
@@ -673,7 +750,7 @@ export default function App() {
             </div>
           )}
         </div>
-        {viewMode === 'notes' && (<><div className="px-4 pt-4 pb-2 border-t border-gray-100 mt-2"><div className="relative"><Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={16} /><input type="text" placeholder="Buscar..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="w-full pl-9 pr-4 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-100 focus:border-indigo-300 transition-all" /></div></div><div className="flex-1 overflow-y-auto px-2 space-y-1 py-2">{filteredNotes.length === 0 ? (<div className="text-center py-10 text-gray-400 text-sm">{searchQuery ? 'Sin resultados' : 'Vacío'}</div>) : (filteredNotes.map(note => (<div key={note.id} onClick={() => { setActiveNoteId(note.id); if(window.innerWidth < 768) setIsSidebarOpen(false); }} className={`group flex items-center justify-between p-3 rounded-lg cursor-pointer transition-all duration-200 border border-transparent ${activeNoteId === note.id ? 'bg-indigo-50 border-indigo-100' : 'hover:bg-gray-50'}`}><div className="overflow-hidden flex-1 mr-2"><h3 className={`font-medium truncate ${activeNoteId === note.id ? 'text-indigo-900' : 'text-gray-700'}`}>{note.title || 'Sin título'}</h3><div className="flex items-center gap-2 mt-1"><NoteBadge colorKey={getProjectColor(note.category)}>{note.category}</NoteBadge><p className="text-xs text-gray-400 truncate">{new Date(note.updatedAt).toLocaleDateString()}</p></div></div><button onClick={(e) => deleteNote(e, note.id)} className={`p-1.5 rounded-md text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors ${activeNoteId === note.id ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}><Trash2 size={14} /></button></div>)))}</div></>)}
+        {viewMode === 'notes' && (<><div className="px-4 pt-4 pb-2 border-t border-gray-100 mt-2"><div className="relative"><Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={16} /><input type="text" placeholder="Buscar..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="w-full pl-9 pr-4 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-100 focus:border-indigo-300 transition-all" /></div></div><div className="flex-1 overflow-y-auto px-2 space-y-1 py-2">{filteredNotes.length === 0 ? (<div className="text-center py-10 text-gray-400 text-sm">{searchQuery ? 'Sin resultados' : 'Vacío'}</div>) : (filteredNotes.map(note => (<div key={note.id} onClick={() => { setActiveNoteId(note.id); if(window.innerWidth < 768) setIsSidebarOpen(false); }} className={`group flex items-center justify-between p-3 rounded-lg cursor-pointer transition-all duration-200 border ${note.pinned ? 'border-yellow-200 bg-yellow-50/50' : 'border-transparent'} ${activeNoteId === note.id ? 'bg-indigo-50 border-indigo-100' : 'hover:bg-gray-50'}`}><div className="overflow-hidden flex-1 mr-2 flex items-start gap-2"><button onClick={(e) => togglePinNote(e, note.id)} className={`mt-0.5 flex-shrink-0 ${note.pinned ? 'text-yellow-500' : 'text-gray-300 hover:text-yellow-500'} transition-colors`}><Pin size={14} className={note.pinned ? '' : 'opacity-50'} /></button><div className="flex-1 min-w-0"><h3 className={`font-medium truncate flex items-center gap-2 ${activeNoteId === note.id ? 'text-indigo-900' : 'text-gray-700'}`}>{note.title || 'Sin título'}</h3><div className="flex items-center gap-2 mt-1"><NoteBadge colorKey={getProjectColor(note.category)}>{note.category}</NoteBadge><p className="text-xs text-gray-400 truncate">{new Date(note.updatedAt).toLocaleDateString()}</p></div></div></div><button onClick={(e) => deleteNote(e, note.id)} className={`p-1.5 rounded-md text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors ${activeNoteId === note.id ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}><Trash2 size={14} /></button></div>)))}</div></>)}
       </aside>
       <main className="flex-1 flex flex-col h-full w-full bg-white md:bg-gray-50/50 relative overflow-hidden">
         <header className="md:hidden h-14 bg-white border-b border-gray-200 flex items-center px-4 justify-between sticky top-0 z-10 flex-shrink-0"><button onClick={() => setIsSidebarOpen(true)} className="text-gray-600"><Menu size={24} /></button><span className="font-semibold text-gray-700 truncate max-w-[200px]">{viewMode === 'gallery' ? 'Galería Global' : activeNote?.title}</span><div className="w-6"></div></header>
