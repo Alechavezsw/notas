@@ -6,7 +6,8 @@ import {
   FileText, Trello, CheckSquare, ChevronLeft, ChevronRight, Calendar,
   User, Image as ImageIcon, UploadCloud, Grid, Layers, Tag,
   Link as LinkIcon, ExternalLink, Book, Tv, Plane, Dumbbell, Wrench,
-  ShoppingCart, Heart, Map, AlertCircle, ListTodo, Loader2
+  ShoppingCart, Heart, Map, AlertCircle, ListTodo, Loader2,
+  Bold, Underline
 } from 'lucide-react';
 
 // --- CONFIGURACIÓN SUPABASE ---
@@ -77,9 +78,76 @@ const NoteBadge = ({ children, colorKey = 'gray' }) => {
 }
 
 // --- Blocks ---
-const TextBlock = ({ content, onChange, placeholder = "Escribe algo aquí..." }) => (
-  <textarea className="w-full bg-transparent resize-none focus:outline-none text-gray-700 leading-relaxed p-2 rounded hover:bg-gray-50 focus:bg-white transition-colors text-base md:text-sm" placeholder={placeholder} value={content} onChange={(e) => { e.target.style.height = 'auto'; e.target.style.height = e.target.scrollHeight + 'px'; onChange(e.target.value); }} style={{ minHeight: '3rem' }} />
-);
+const TextBlock = ({ content, onChange, placeholder = "Escribe algo aquí..." }) => {
+  const editorRef = React.useRef(null);
+  const [showFormatBar, setShowFormatBar] = React.useState(false);
+
+  const handleInput = (e) => {
+    const html = e.target.innerHTML;
+    onChange(html);
+    // Auto-resize
+    e.target.style.height = 'auto';
+    e.target.style.height = e.target.scrollHeight + 'px';
+  };
+
+  const applyFormat = (command, value = null) => {
+    document.execCommand(command, false, value);
+    if (editorRef.current) {
+      const html = editorRef.current.innerHTML;
+      onChange(html);
+    }
+  };
+
+  const handleFocus = () => {
+    setShowFormatBar(true);
+  };
+
+  const handleBlur = () => {
+    // Delay para permitir clicks en los botones
+    setTimeout(() => setShowFormatBar(false), 200);
+  };
+
+  return (
+    <div className="group relative">
+      {showFormatBar && (
+        <div className="absolute -top-10 left-0 z-10 flex items-center gap-1 bg-white border border-gray-200 rounded-lg shadow-lg p-1">
+          <button
+            onClick={() => applyFormat('bold')}
+            className="p-2 hover:bg-gray-100 rounded transition-colors"
+            title="Negrita"
+          >
+            <Bold size={16} className="text-gray-700" />
+          </button>
+          <button
+            onClick={() => applyFormat('underline')}
+            className="p-2 hover:bg-gray-100 rounded transition-colors"
+            title="Subrayado"
+          >
+            <Underline size={16} className="text-gray-700" />
+          </button>
+        </div>
+      )}
+      <div
+        ref={editorRef}
+        contentEditable
+        onInput={handleInput}
+        onFocus={handleFocus}
+        onBlur={handleBlur}
+        dangerouslySetInnerHTML={{ __html: content }}
+        className="w-full bg-transparent resize-none focus:outline-none text-gray-700 leading-relaxed p-2 rounded hover:bg-gray-50 focus:bg-white transition-colors text-base md:text-sm min-h-[3rem]"
+        style={{ minHeight: '3rem' }}
+        data-placeholder={placeholder}
+      />
+      <style>{`
+        [contenteditable][data-placeholder]:empty:before {
+          content: attr(data-placeholder);
+          color: #9ca3af;
+          pointer-events: none;
+        }
+      `}</style>
+    </div>
+  );
+};
 
 const ImageBlock = ({ src, caption, onChange }) => {
   const handleImageUpload = (e) => {
@@ -113,10 +181,23 @@ const ImageBlock = ({ src, caption, onChange }) => {
 };
 
 const ColumnsBlock = ({ leftContent, rightContent, onLeftChange, onRightChange }) => (
-  <div className="flex flex-col md:flex-row gap-4 my-4 bg-gray-50 p-4 rounded-xl border border-dashed border-gray-300">
-    <div className="flex-1"><div className="text-xs font-semibold text-gray-400 mb-2 uppercase tracking-wider">Izquierda</div><TextBlock content={leftContent} onChange={onLeftChange} placeholder="Escribe..." /></div>
-    <div className="w-px bg-gray-200 hidden md:block"></div><div className="h-px bg-gray-200 block md:hidden w-full"></div>
-    <div className="flex-1"><div className="text-xs font-semibold text-gray-400 mb-2 uppercase tracking-wider">Derecha</div><TextBlock content={rightContent} onChange={onRightChange} placeholder="Escribe..." /></div>
+  <div className="my-6 bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
+    <div className="flex flex-col md:flex-row divide-y md:divide-y-0 md:divide-x divide-gray-200">
+      <div className="flex-1 p-4 md:p-6">
+        <div className="text-xs font-semibold text-indigo-600 mb-3 uppercase tracking-wider flex items-center gap-2">
+          <div className="w-1 h-4 bg-indigo-500 rounded"></div>
+          Columna Izquierda
+        </div>
+        <TextBlock content={leftContent} onChange={onLeftChange} placeholder="Escribe en la columna izquierda..." />
+      </div>
+      <div className="flex-1 p-4 md:p-6 bg-gray-50/50">
+        <div className="text-xs font-semibold text-emerald-600 mb-3 uppercase tracking-wider flex items-center gap-2">
+          <div className="w-1 h-4 bg-emerald-500 rounded"></div>
+          Columna Derecha
+        </div>
+        <TextBlock content={rightContent} onChange={onRightChange} placeholder="Escribe en la columna derecha..." />
+      </div>
+    </div>
   </div>
 );
 
@@ -596,8 +677,8 @@ export default function App() {
       </aside>
       <main className="flex-1 flex flex-col h-full w-full bg-white md:bg-gray-50/50 relative overflow-hidden">
         <header className="md:hidden h-14 bg-white border-b border-gray-200 flex items-center px-4 justify-between sticky top-0 z-10 flex-shrink-0"><button onClick={() => setIsSidebarOpen(true)} className="text-gray-600"><Menu size={24} /></button><span className="font-semibold text-gray-700 truncate max-w-[200px]">{viewMode === 'gallery' ? 'Galería Global' : activeNote?.title}</span><div className="w-6"></div></header>
-        {viewMode === 'gallery' ? (<GlobalGallery notes={notes} />) : activeNote ? (<div className="flex-1 overflow-y-auto"><div className="max-w-4xl mx-auto px-4 md:px-6 py-6 md:py-12 min-h-full bg-white shadow-sm md:my-6 md:rounded-xl border-gray-100 md:border pb-32"><div className="flex items-center gap-2 mb-4 overflow-hidden"><Tag size={14} className="text-gray-400 flex-shrink-0" /><div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">{projects.map(proj => (<Badge key={proj.name} colorKey={proj.color} active={activeNote.category === proj.name} onClick={() => updateNoteCategory(proj.name)}>{proj.name}</Badge>))}</div></div><input type="text" value={activeNote.title} onChange={(e) => updateNoteTitle(e.target.value)} placeholder="Título de la nota" className="w-full text-2xl md:text-4xl font-bold text-gray-900 placeholder-gray-300 border-none focus:outline-none bg-transparent mb-6 md:mb-8" /><div className="space-y-4">{activeNote.blocks.map((block, index) => (<div key={index} className="group relative pl-2 hover:pl-0 transition-all duration-200"><div className="absolute -left-8 top-2 opacity-0 group-hover:opacity-100 flex flex-col items-center space-y-1 transition-opacity z-10"><button onClick={() => deleteBlock(index)} className="p-1 text-gray-300 hover:text-red-500 transition-colors bg-white rounded-full shadow-sm border border-gray-100"><Trash2 size={14} /></button></div><div className="min-h-[2rem]">{block.type === 'text' && (<TextBlock content={block.content} onChange={(val) => updateBlock(index, { content: val })} />)}{block.type === 'columns' && (<ColumnsBlock leftContent={block.left} rightContent={block.right} onLeftChange={(val) => updateBlock(index, { left: val })} onRightChange={(val) => updateBlock(index, { right: val })} />)}{block.type === 'table' && (<TableBlock data={block.data} headers={block.headers} onChange={(data, headers) => updateBlock(index, { data, headers })} />)}{block.type === 'kanban' && (<KanbanBlock columns={block.columns} onChange={(columns) => updateBlock(index, { columns })} />)}{block.type === 'project' && (<ProjectPlanBlock tasks={block.tasks} onChange={(tasks) => updateBlock(index, { tasks })} />)}{block.type === 'special_list' && (<SpecialListBlock listType={block.listType} items={block.items} onChange={(items) => updateBlock(index, { items })} onTypeChange={(listType) => updateBlock(index, { listType })} />)}{block.type === 'image' && (<ImageBlock src={block.src} caption={block.caption} onChange={(data) => updateBlock(index, data)} />)}</div></div>))}</div><div className="h-32 cursor-text" onClick={() => { const lastBlock = activeNote.blocks[activeNote.blocks.length - 1]; if (!lastBlock || lastBlock.type !== 'text' || lastBlock.content !== '') { addBlock('text'); } }}></div></div></div>) : (<div className="flex-1 flex flex-col items-center justify-center text-gray-400 p-8"><FileText size={64} className="mb-4 text-gray-200" /><p className="text-lg font-medium text-gray-500">Selecciona o crea una nota</p><Button onClick={createNote} variant="primary" className="mt-6">Crear primera nota</Button></div>)}
-        {viewMode === 'notes' && activeNote && (<div className="fixed bottom-6 left-0 right-0 flex justify-center px-4 z-20 pointer-events-none"><div className="bg-white/95 backdrop-blur-md shadow-2xl border border-gray-200/50 rounded-full p-2 flex items-center space-x-1 sm:space-x-2 pointer-events-auto overflow-x-auto max-w-full scrollbar-hide"><button onClick={() => addBlock('text')} title="Texto" className="btn-icon flex-shrink-0 flex items-center space-x-2 px-3 py-3 rounded-full hover:bg-gray-100 text-gray-700 transition-colors"><Type size={20} className="text-indigo-500" /></button><div className="w-px h-6 bg-gray-200 flex-shrink-0"></div><button onClick={() => addBlock('columns')} title="Columnas" className="btn-icon flex-shrink-0 flex items-center space-x-2 px-3 py-3 rounded-full hover:bg-gray-100 text-gray-700 transition-colors"><Columns size={20} className="text-emerald-500" /></button><div className="w-px h-6 bg-gray-200 flex-shrink-0"></div><button onClick={() => addBlock('table')} title="Tabla" className="btn-icon flex-shrink-0 flex items-center space-x-2 px-3 py-3 rounded-full hover:bg-gray-100 text-gray-700 transition-colors"><Table size={20} className="text-orange-500" /></button><div className="w-px h-6 bg-gray-200 flex-shrink-0"></div><button onClick={() => addBlock('kanban')} title="Tablero Kanban" className="btn-icon flex-shrink-0 flex items-center space-x-2 px-3 py-3 rounded-full hover:bg-gray-100 text-gray-700 transition-colors"><Trello size={20} className="text-blue-500" /></button><div className="w-px h-6 bg-gray-200 flex-shrink-0"></div><button onClick={() => addBlock('project')} title="Plan de Proyecto" className="btn-icon flex-shrink-0 flex items-center space-x-2 px-3 py-3 rounded-full hover:bg-gray-100 text-gray-700 transition-colors"><CheckSquare size={20} className="text-pink-500" /></button><div className="w-px h-6 bg-gray-200 flex-shrink-0"></div><button onClick={() => addBlock('special_list')} title="Checklist Especial" className="btn-icon flex-shrink-0 flex items-center space-x-2 px-3 py-3 rounded-full hover:bg-gray-100 text-gray-700 transition-colors"><ListTodo size={20} className="text-teal-500" /></button><div className="w-px h-6 bg-gray-200 flex-shrink-0"></div><button onClick={() => addBlock('image')} title="Imagen" className="btn-icon flex-shrink-0 flex items-center space-x-2 px-3 py-3 rounded-full hover:bg-gray-100 text-gray-700 transition-colors"><ImageIcon size={20} className="text-purple-500" /></button></div></div>)}
+        {viewMode === 'gallery' ? (<GlobalGallery notes={notes} />) : activeNote ? (<div className="flex-1 overflow-y-auto"><div className="max-w-4xl mx-auto px-4 md:px-6 py-6 md:py-12 min-h-full bg-white shadow-sm md:my-6 md:rounded-xl border-gray-100 md:border pb-32"><div className="flex items-center gap-2 mb-4 overflow-hidden"><Tag size={14} className="text-gray-400 flex-shrink-0" /><div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">{projects.map(proj => (<Badge key={proj.name} colorKey={proj.color} active={activeNote.category === proj.name} onClick={() => updateNoteCategory(proj.name)}>{proj.name}</Badge>))}</div></div><input type="text" value={activeNote.title} onChange={(e) => updateNoteTitle(e.target.value)} placeholder="Título de la nota" className="w-full text-2xl md:text-4xl font-bold text-gray-900 placeholder-gray-300 border-none focus:outline-none bg-transparent mb-6 md:mb-8" /><div className="space-y-4">{activeNote.blocks.map((block, index) => (<div key={index} className="group relative pl-2 hover:pl-0 transition-all duration-200"><div className="absolute -left-8 top-2 opacity-0 group-hover:opacity-100 flex flex-col items-center space-y-1 transition-opacity z-10"><button onClick={() => deleteBlock(index)} className="p-1 text-gray-300 hover:text-red-500 transition-colors bg-white rounded-full shadow-sm border border-gray-100"><Trash2 size={14} /></button></div><div className="min-h-[2rem]">{block.type === 'text' && (<TextBlock content={block.content || ''} onChange={(val) => updateBlock(index, { content: val })} />)}{block.type === 'checklist' && (<div className="my-4 space-y-2">{block.items?.map((item, idx) => (<div key={item.id || idx} className="flex items-center gap-3 p-2 rounded-lg hover:bg-gray-50 group"><input type="checkbox" checked={item.checked || false} onChange={(e) => { const newItems = [...(block.items || [])]; newItems[idx] = { ...newItems[idx], checked: e.target.checked }; updateBlock(index, { items: newItems }); }} className="w-5 h-5 text-indigo-600 rounded focus:ring-indigo-500 border-gray-300" /><input type="text" value={item.text || ''} onChange={(e) => { const newItems = [...(block.items || [])]; newItems[idx] = { ...newItems[idx], text: e.target.value }; updateBlock(index, { items: newItems }); }} placeholder="Elemento de lista..." className={`flex-1 bg-transparent focus:outline-none text-base md:text-sm ${item.checked ? 'text-gray-400 line-through' : 'text-gray-700'}`} /><button onClick={() => { const newItems = block.items.filter((_, i) => i !== idx); updateBlock(index, { items: newItems.length > 0 ? newItems : [{ id: Date.now(), text: '', checked: false }] }); }} className="opacity-0 group-hover:opacity-100 text-gray-300 hover:text-red-500 transition-opacity"><X size={16} /></button></div>))}<button onClick={() => { const newItems = [...(block.items || []), { id: Date.now(), text: '', checked: false }]; updateBlock(index, { items: newItems }); }} className="mt-2 text-sm text-gray-500 hover:text-indigo-600 flex items-center gap-2"><Plus size={16} /> Añadir elemento</button></div>)}{block.type === 'columns' && (<ColumnsBlock leftContent={block.left} rightContent={block.right} onLeftChange={(val) => updateBlock(index, { left: val })} onRightChange={(val) => updateBlock(index, { right: val })} />)}{block.type === 'table' && (<TableBlock data={block.data} headers={block.headers} onChange={(data, headers) => updateBlock(index, { data, headers })} />)}{block.type === 'kanban' && (<KanbanBlock columns={block.columns} onChange={(columns) => updateBlock(index, { columns })} />)}{block.type === 'project' && (<ProjectPlanBlock tasks={block.tasks} onChange={(tasks) => updateBlock(index, { tasks })} />)}{block.type === 'special_list' && (<SpecialListBlock listType={block.listType} items={block.items} onChange={(items) => updateBlock(index, { items })} onTypeChange={(listType) => updateBlock(index, { listType })} />)}{block.type === 'image' && (<ImageBlock src={block.src} caption={block.caption} onChange={(data) => updateBlock(index, data)} />)}</div></div>))}</div><div className="h-32 cursor-text" onClick={() => { const lastBlock = activeNote.blocks[activeNote.blocks.length - 1]; if (!lastBlock || lastBlock.type !== 'text' || lastBlock.content !== '') { addBlock('text'); } }}></div></div></div>) : (<div className="flex-1 flex flex-col items-center justify-center text-gray-400 p-8"><FileText size={64} className="mb-4 text-gray-200" /><p className="text-lg font-medium text-gray-500">Selecciona o crea una nota</p><Button onClick={createNote} variant="primary" className="mt-6">Crear primera nota</Button></div>)}
+        {viewMode === 'notes' && activeNote && (<div className="fixed bottom-6 left-0 right-0 flex justify-center px-4 z-20 pointer-events-none"><div className="bg-white/95 backdrop-blur-md shadow-2xl border border-gray-200/50 rounded-full p-2 flex items-center space-x-1 sm:space-x-2 pointer-events-auto overflow-x-auto max-w-full scrollbar-hide"><button onClick={() => addBlock('text')} title="Texto" className="btn-icon flex-shrink-0 flex items-center space-x-2 px-3 py-3 rounded-full hover:bg-gray-100 text-gray-700 transition-colors"><Type size={20} className="text-indigo-500" /></button><div className="w-px h-6 bg-gray-200 flex-shrink-0"></div><button onClick={() => addBlock('checklist')} title="Checklist" className="btn-icon flex-shrink-0 flex items-center space-x-2 px-3 py-3 rounded-full hover:bg-gray-100 text-gray-700 transition-colors"><CheckSquare size={20} className="text-green-500" /></button><div className="w-px h-6 bg-gray-200 flex-shrink-0"></div><button onClick={() => addBlock('columns')} title="Columnas" className="btn-icon flex-shrink-0 flex items-center space-x-2 px-3 py-3 rounded-full hover:bg-gray-100 text-gray-700 transition-colors"><Columns size={20} className="text-emerald-500" /></button><div className="w-px h-6 bg-gray-200 flex-shrink-0"></div><button onClick={() => addBlock('table')} title="Tabla" className="btn-icon flex-shrink-0 flex items-center space-x-2 px-3 py-3 rounded-full hover:bg-gray-100 text-gray-700 transition-colors"><Table size={20} className="text-orange-500" /></button><div className="w-px h-6 bg-gray-200 flex-shrink-0"></div><button onClick={() => addBlock('kanban')} title="Tablero Kanban" className="btn-icon flex-shrink-0 flex items-center space-x-2 px-3 py-3 rounded-full hover:bg-gray-100 text-gray-700 transition-colors"><Trello size={20} className="text-blue-500" /></button><div className="w-px h-6 bg-gray-200 flex-shrink-0"></div><button onClick={() => addBlock('project')} title="Plan de Proyecto" className="btn-icon flex-shrink-0 flex items-center space-x-2 px-3 py-3 rounded-full hover:bg-gray-100 text-gray-700 transition-colors"><CheckSquare size={20} className="text-pink-500" /></button><div className="w-px h-6 bg-gray-200 flex-shrink-0"></div><button onClick={() => addBlock('special_list')} title="Checklist Especial" className="btn-icon flex-shrink-0 flex items-center space-x-2 px-3 py-3 rounded-full hover:bg-gray-100 text-gray-700 transition-colors"><ListTodo size={20} className="text-teal-500" /></button><div className="w-px h-6 bg-gray-200 flex-shrink-0"></div><button onClick={() => addBlock('image')} title="Imagen" className="btn-icon flex-shrink-0 flex items-center space-x-2 px-3 py-3 rounded-full hover:bg-gray-100 text-gray-700 transition-colors"><ImageIcon size={20} className="text-purple-500" /></button></div></div>)}
       </main>
     </div>
   );
