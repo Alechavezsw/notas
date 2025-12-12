@@ -15,6 +15,7 @@ CREATE TABLE IF NOT EXISTS notes (
   title TEXT NOT NULL DEFAULT 'Nueva Nota',
   category TEXT NOT NULL DEFAULT 'General',
   blocks JSONB NOT NULL DEFAULT '[]'::jsonb,
+  pinned BOOLEAN NOT NULL DEFAULT false,
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
