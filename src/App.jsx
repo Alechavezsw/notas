@@ -558,10 +558,10 @@ export default function App() {
       clearTimeout(saveTimeoutRef.current);
     }
     
-    // Crear nuevo timeout
+    // Crear nuevo timeout (reducido a 1 segundo para mejor responsividad)
     saveTimeoutRef.current = setTimeout(() => {
       saveData();
-    }, 2000);
+    }, 1000);
     
     return () => {
       if (saveTimeoutRef.current) {
@@ -744,7 +744,7 @@ export default function App() {
     });
   }, [activeNoteId]);
   const addBlock = (type) => { 
-     if (!activeNote) return; 
+     if (!activeNoteId) return; 
      let blk;
      if (type === 'table') blk = { type, data: [['', '', ''], ['', '', '']], headers: ['Col 1', 'Col 2', 'Col 3'] };
      else if (type === 'columns') blk = { type, left: '', right: '' };
@@ -753,10 +753,34 @@ export default function App() {
      else if (type === 'special_list') blk = { type, listType: 'books', items: [] };
      else if (type === 'image') blk = { type, src: null, caption: '' };
      else blk = { type, content: '' };
-     updateBlocks([...activeNote.blocks, blk]);
+     setNotes(prev => {
+       const note = prev.find(n => n.id === activeNoteId);
+       if (!note) return prev;
+       const updated = prev.map(n => n.id === activeNoteId ? { ...n, blocks: [...note.blocks, blk], updatedAt: new Date().toISOString() } : n);
+       notesRef.current = updated;
+       return updated;
+     });
   };
-  const updateBlock = (idx, data) => { const bs = [...activeNote.blocks]; bs[idx] = { ...bs[idx], ...data }; updateBlocks(bs); };
-  const deleteBlock = (idx) => { updateBlocks(activeNote.blocks.filter((_, i) => i !== idx)); };
+  const updateBlock = useCallback((idx, data) => {
+    setNotes(prev => {
+      const note = prev.find(n => n.id === activeNoteId);
+      if (!note) return prev;
+      const bs = [...note.blocks];
+      bs[idx] = { ...bs[idx], ...data };
+      const updated = prev.map(n => n.id === activeNoteId ? { ...n, blocks: bs, updatedAt: new Date().toISOString() } : n);
+      notesRef.current = updated;
+      return updated;
+    });
+  }, [activeNoteId]);
+  const deleteBlock = useCallback((idx) => {
+    setNotes(prev => {
+      const note = prev.find(n => n.id === activeNoteId);
+      if (!note) return prev;
+      const updated = prev.map(n => n.id === activeNoteId ? { ...n, blocks: note.blocks.filter((_, i) => i !== idx), updatedAt: new Date().toISOString() } : n);
+      notesRef.current = updated;
+      return updated;
+    });
+  }, [activeNoteId]);
 
   return (
     <div className="flex h-screen bg-gray-100 text-gray-800 font-sans overflow-hidden">
