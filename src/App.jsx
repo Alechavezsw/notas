@@ -15,6 +15,15 @@ const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
 const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
 const supabase = (supabaseUrl && supabaseKey) ? createClient(supabaseUrl, supabaseKey) : null;
 
+// Log de configuración (solo en desarrollo)
+if (import.meta.env.DEV) {
+  if (supabase) {
+    console.log('✓ Supabase configurado correctamente');
+  } else {
+    console.log('ℹ️ Supabase no configurado, usando LocalStorage');
+  }
+}
+
 // --- Configuración de Colores ---
 const COLOR_PALETTE = {
   indigo: { bg: 'bg-indigo-100', text: 'text-indigo-800', border: 'border-indigo-200', dot: 'bg-indigo-500' },
@@ -423,12 +432,12 @@ export default function App() {
   const notesRef = useRef([]);
   const projectsRef = useRef([]);
 
-  // Sincronizar refs con state
-  useEffect(() => {
+  // Sincronizar refs con state (usando useLayoutEffect para que se ejecute antes del guardado)
+  React.useLayoutEffect(() => {
     notesRef.current = notes;
   }, [notes]);
   
-  useEffect(() => {
+  React.useLayoutEffect(() => {
     projectsRef.current = projects;
   }, [projects]);
 
@@ -480,14 +489,18 @@ export default function App() {
 
 
   // Guardado Automático mejorado con useRef para evitar interferencias
-  const saveData = useCallback(async () => {
+  const saveData = useCallback(async (notesToSave = null, projectsToSave = null) => {
     if (isLoading) return;
     
     setSaveStatus('saving');
     
-    // Usar refs para obtener los valores más recientes sin causar re-renders
-    const currentNotes = notesRef.current;
-    const currentProjects = projectsRef.current;
+    // Asegurar que los refs estén actualizados
+    if (notesToSave) notesRef.current = notesToSave;
+    if (projectsToSave) projectsRef.current = projectsToSave;
+    
+    // Usar los parámetros si se proporcionan, sino usar refs
+    const currentNotes = notesToSave || notesRef.current;
+    const currentProjects = projectsToSave || projectsRef.current;
     
     if (supabase) {
       try {
@@ -499,7 +512,9 @@ export default function App() {
             .delete()
             .in('id', idsToDelete);
           
-          if (!deleteError) {
+          if (deleteError) {
+            console.error('Error deleting notes:', deleteError);
+          } else {
             setDeletedNoteIds([]);
           }
         }
@@ -512,42 +527,99 @@ export default function App() {
             .delete()
             .in('name', namesToDelete);
           
-          if (!deleteProjError) {
+          if (deleteProjError) {
+            console.error('Error deleting projects:', deleteProjError);
+          } else {
             setDeletedProjectNames([]);
           }
         }
 
-        // Actualizar/Insertar notas existentes usando refs
+        // Preparar datos de notas asegurando que los IDs sean números
         const updates = currentNotes.map(n => ({
-          id: n.id,
-          title: n.title,
-          category: n.category,
-          blocks: n.blocks,
-          pinned: n.pinned || false,
+          id: Number(n.id), // Asegurar que sea número
+          title: n.title || 'Nueva Nota',
+          category: n.category || 'General',
+          blocks: n.blocks || [],
+          pinned: Boolean(n.pinned), // Asegurar que sea booleano
           updated_at: n.updatedAt || new Date().toISOString()
         }));
-        const projectUpdates = currentProjects.map(p => ({ name: p.name, color: p.color, tags: p.tags || [] }));
+        
+        const projectUpdates = currentProjects.map(p => ({ 
+          name: p.name, 
+          color: p.color, 
+          tags: Array.isArray(p.tags) ? p.tags : [] 
+        }));
+
+        let hasError = false;
 
         if (updates.length > 0) {
-          await supabase.from('notes').upsert(updates);
+          // Usar upsert con onConflict para manejar correctamente las inserciones y actualizaciones
+          const { error: notesError } = await supabase
+            .from('notes')
+            .upsert(updates, { 
+              onConflict: 'id',
+              ignoreDuplicates: false 
+            });
+          
+          if (notesError) {
+            console.error('Error saving notes to Supabase:', notesError);
+            console.error('Notes data:', updates);
+            hasError = true;
+          }
         }
 
         if (projectUpdates.length > 0) {
-          await supabase.from('projects').upsert(projectUpdates);
+          const { error: projectsError } = await supabase
+            .from('projects')
+            .upsert(projectUpdates, { 
+              onConflict: 'name',
+              ignoreDuplicates: false 
+            });
+          
+          if (projectsError) {
+            console.error('Error saving projects to Supabase:', projectsError);
+            hasError = true;
+          }
         }
         
-        setSaveStatus('saved');
+        if (hasError) {
+          // Si hay error en Supabase, intentar guardar en localStorage como respaldo
+          try {
+            localStorage.setItem('alenotes_data_v2', JSON.stringify(currentNotes));
+            localStorage.setItem('alenotes_projects_v2', JSON.stringify(currentProjects));
+            console.log('Datos guardados en localStorage como respaldo');
+          } catch (localError) {
+            console.error('Error saving to localStorage:', localError);
+          }
+          setSaveStatus('error');
+        } else {
+          setSaveStatus('saved');
+        }
       } catch (error) {
-        console.error('Error saving data:', error);
+        console.error('Error saving data to Supabase:', error);
+        // Intentar guardar en localStorage como respaldo
+        try {
+          localStorage.setItem('alenotes_data_v2', JSON.stringify(currentNotes));
+          localStorage.setItem('alenotes_projects_v2', JSON.stringify(currentProjects));
+          console.log('Datos guardados en localStorage como respaldo');
+        } catch (localError) {
+          console.error('Error saving to localStorage:', localError);
+        }
         setSaveStatus('error');
       }
     } else {
       // Fallback LocalStorage
-      localStorage.setItem('alenotes_data_v2', JSON.stringify(currentNotes));
-      localStorage.setItem('alenotes_projects_v2', JSON.stringify(currentProjects));
-      setTimeout(() => setSaveStatus('saved'), 500);
+      try {
+        localStorage.setItem('alenotes_data_v2', JSON.stringify(currentNotes));
+        localStorage.setItem('alenotes_projects_v2', JSON.stringify(currentProjects));
+        setSaveStatus('saved');
+        console.log('Datos guardados en localStorage');
+      } catch (error) {
+        console.error('Error saving to localStorage:', error);
+        setSaveStatus('error');
+      }
     }
-  }, [isLoading, deletedNoteIds, deletedProjectNames]);
+  }, [isLoading, deletedNoteIds, deletedProjectNames, supabase]);
 
   // Efecto para guardar automáticamente con debounce
   useEffect(() => {
@@ -560,7 +632,11 @@ export default function App() {
     
     // Crear nuevo timeout (reducido a 1 segundo para mejor responsividad)
     saveTimeoutRef.current = setTimeout(() => {
-      saveData();
+      // Pasar los datos directamente para asegurar que se usen los valores más recientes
+      saveData(notes, projects).catch(error => {
+        console.error('Error en saveData:', error);
+        setSaveStatus('error');
+      });
     }, 1000);
     
     return () => {
@@ -786,9 +862,9 @@ export default function App() {
     <div className="flex h-screen bg-gray-100 text-gray-800 font-sans overflow-hidden">
       {/* Indicador de estado de guardado */}
       <div className="fixed top-4 right-4 z-50 pointer-events-none">
-         {saveStatus === 'saving' && <div className="bg-white/90 backdrop-blur shadow-sm px-3 py-1 rounded-full text-xs font-medium text-indigo-600 flex items-center border border-indigo-100"><Loader2 size={12} className="animate-spin mr-2"/> Guardando...</div>}
-         {saveStatus === 'error' && <div className="bg-red-100 px-3 py-1 rounded-full text-xs font-medium text-red-600 border border-red-200">Error al guardar</div>}
-         {saveStatus === 'saved' && !isLoading && <div className="bg-green-100 px-3 py-1 rounded-full text-xs font-medium text-green-600 border border-green-200 opacity-0 transition-opacity duration-1000">Guardado</div>}
+         {saveStatus === 'saving' && <div className="bg-white/90 backdrop-blur shadow-sm px-3 py-1.5 rounded-full text-xs font-medium text-indigo-600 flex items-center border border-indigo-100 animate-pulse"><Loader2 size={12} className="animate-spin mr-2"/> Guardando...</div>}
+         {saveStatus === 'error' && <div className="bg-red-100 px-3 py-1.5 rounded-full text-xs font-medium text-red-600 border border-red-200 animate-pulse">⚠️ Error al guardar</div>}
+         {saveStatus === 'saved' && !isLoading && <div className="bg-green-100 px-3 py-1.5 rounded-full text-xs font-medium text-green-600 border border-green-200 opacity-100 transition-opacity duration-300">✓ Guardado</div>}
       </div>
 
       {isSidebarOpen && <div className="fixed inset-0 bg-black/20 z-20 md:hidden" onClick={() => setIsSidebarOpen(false)} />}
