@@ -89,9 +89,11 @@ BEGIN
 END $$;
 
 -- Tabla billetera (una fila por defecto: id = 'default')
+-- dinero_actual y a_cobrar: array de { id, concepto, monto?, fecha? }
 CREATE TABLE IF NOT EXISTS billetera (
   id TEXT PRIMARY KEY DEFAULT 'default',
   cantidades JSONB NOT NULL DEFAULT '{}'::jsonb,
+  dinero_actual JSONB NOT NULL DEFAULT '[]'::jsonb,
   a_cobrar JSONB NOT NULL DEFAULT '[]'::jsonb,
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
@@ -105,8 +107,19 @@ ALTER TABLE billetera ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Allow all operations on billetera" ON billetera
     FOR ALL USING (true) WITH CHECK (true);
 
+-- Migración: agregar columna dinero_actual si no existe
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'billetera' AND column_name = 'dinero_actual'
+    ) THEN
+        ALTER TABLE billetera ADD COLUMN dinero_actual JSONB NOT NULL DEFAULT '[]'::jsonb;
+    END IF;
+END $$;
+
 -- Insertar fila por defecto si no existe
-INSERT INTO billetera (id, cantidades, a_cobrar)
-VALUES ('default', '{}'::jsonb, '[]'::jsonb)
+INSERT INTO billetera (id, cantidades, dinero_actual, a_cobrar)
+VALUES ('default', '{}'::jsonb, '[]'::jsonb, '[]'::jsonb)
 ON CONFLICT (id) DO NOTHING;
 
