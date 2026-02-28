@@ -88,4 +88,25 @@ BEGIN
     END IF;
 END $$;
 
+-- Tabla billetera (una fila por defecto: id = 'default')
+CREATE TABLE IF NOT EXISTS billetera (
+  id TEXT PRIMARY KEY DEFAULT 'default',
+  cantidades JSONB NOT NULL DEFAULT '{}'::jsonb,
+  a_cobrar JSONB NOT NULL DEFAULT '[]'::jsonb,
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Trigger para actualizar updated_at en billetera
+CREATE TRIGGER update_billetera_updated_at BEFORE UPDATE ON billetera
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+ALTER TABLE billetera ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Allow all operations on billetera" ON billetera
+    FOR ALL USING (true) WITH CHECK (true);
+
+-- Insertar fila por defecto si no existe
+INSERT INTO billetera (id, cantidades, a_cobrar)
+VALUES ('default', '{}'::jsonb, '[]'::jsonb)
+ON CONFLICT (id) DO NOTHING;
 
