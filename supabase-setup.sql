@@ -123,3 +123,23 @@ INSERT INTO billetera (id, cantidades, dinero_actual, a_cobrar)
 VALUES ('default', '{}'::jsonb, '[]'::jsonb, '[]'::jsonb)
 ON CONFLICT (id) DO NOTHING;
 
+-- Tabla salud (registros por día: peso, vasos_agua, horas_sueno, animo)
+-- id = 'default', registros = jsonb con clave fecha 'YYYY-MM-DD' y valor { peso, vasosAgua, horasSueno, animo }
+CREATE TABLE IF NOT EXISTS salud (
+  id TEXT PRIMARY KEY DEFAULT 'default',
+  registros JSONB NOT NULL DEFAULT '{}'::jsonb,
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+CREATE TRIGGER update_salud_updated_at BEFORE UPDATE ON salud
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+ALTER TABLE salud ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Allow all operations on salud" ON salud
+    FOR ALL USING (true) WITH CHECK (true);
+
+INSERT INTO salud (id, registros)
+VALUES ('default', '{}'::jsonb)
+ON CONFLICT (id) DO NOTHING;
+
