@@ -88,6 +88,18 @@ BEGIN
     END IF;
 END $$;
 
+-- Migración: Agregar columna stages a projects (etapas + checklist por etapa)
+-- stages = [{ id, name, order, tasks: [{ id, text, done }] }]
+DO $$ 
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns 
+        WHERE table_name = 'projects' AND column_name = 'stages'
+    ) THEN
+        ALTER TABLE projects ADD COLUMN stages JSONB NOT NULL DEFAULT '[]'::jsonb;
+    END IF;
+END $$;
+
 -- Tabla billetera (una fila por defecto: id = 'default')
 -- dinero_actual y a_cobrar: array de { id, concepto, monto?, fecha? }
 CREATE TABLE IF NOT EXISTS billetera (
