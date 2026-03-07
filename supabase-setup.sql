@@ -45,10 +45,12 @@ ALTER TABLE projects ENABLE ROW LEVEL SECURITY;
 ALTER TABLE notes ENABLE ROW LEVEL SECURITY;
 
 -- Política para proyectos: todos pueden leer y escribir (ajusta según necesites)
+DROP POLICY IF EXISTS "Allow all operations on projects" ON projects;
 CREATE POLICY "Allow all operations on projects" ON projects
     FOR ALL USING (true) WITH CHECK (true);
 
 -- Política para notas: todos pueden leer y escribir (ajusta según necesites)
+DROP POLICY IF EXISTS "Allow all operations on notes" ON notes;
 CREATE POLICY "Allow all operations on notes" ON notes
     FOR ALL USING (true) WITH CHECK (true);
 
@@ -116,6 +118,7 @@ CREATE TRIGGER update_billetera_updated_at BEFORE UPDATE ON billetera
 
 ALTER TABLE billetera ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Allow all operations on billetera" ON billetera;
 CREATE POLICY "Allow all operations on billetera" ON billetera
     FOR ALL USING (true) WITH CHECK (true);
 
@@ -148,6 +151,7 @@ CREATE TRIGGER update_salud_updated_at BEFORE UPDATE ON salud
 
 ALTER TABLE salud ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Allow all operations on salud" ON salud;
 CREATE POLICY "Allow all operations on salud" ON salud
     FOR ALL USING (true) WITH CHECK (true);
 
@@ -155,11 +159,12 @@ INSERT INTO salud (id, registros)
 VALUES ('default', '{}'::jsonb)
 ON CONFLICT (id) DO NOTHING;
 
--- Tabla mind_maps (mapas mentales: árbol de nodos)
--- id = 'default', data = { root: { id, text, children: [...] } }
+-- Tabla mind_maps (varios mapas: id uuid, name, data con root)
 CREATE TABLE IF NOT EXISTS mind_maps (
-  id TEXT PRIMARY KEY DEFAULT 'default',
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL DEFAULT 'Sin título',
   data JSONB NOT NULL DEFAULT '{"root":{"id":0,"text":"Centro","children":[]}}'::jsonb,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
@@ -168,10 +173,18 @@ CREATE TRIGGER update_mind_maps_updated_at BEFORE UPDATE ON mind_maps
 
 ALTER TABLE mind_maps ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Allow all operations on mind_maps" ON mind_maps;
 CREATE POLICY "Allow all operations on mind_maps" ON mind_maps
     FOR ALL USING (true) WITH CHECK (true);
 
-INSERT INTO mind_maps (id, data)
-VALUES ('default', '{"root":{"id":0,"text":"Centro","children":[]}}'::jsonb)
-ON CONFLICT (id) DO NOTHING;
+-- Migración: agregar name y created_at si no existen (proyectos existentes)
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'mind_maps' AND column_name = 'name') THEN
+        ALTER TABLE mind_maps ADD COLUMN name TEXT NOT NULL DEFAULT 'Sin título';
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'mind_maps' AND column_name = 'created_at') THEN
+        ALTER TABLE mind_maps ADD COLUMN created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW();
+    END IF;
+END $$;
 

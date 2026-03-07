@@ -38,6 +38,7 @@ export default function Salud() {
   const [registros, setRegistros] = useState({});
   const [isLoading, setIsLoading] = useState(!!supabase);
   const [saveStatus, setSaveStatus] = useState('saved');
+  const [saveError, setSaveError] = useState(null);
   const saveTimeoutRef = useRef(null);
 
   const todayKey = getTodayKey();
@@ -75,6 +76,7 @@ export default function Salud() {
   const saveToBackend = useCallback(async (reg) => {
     if (supabase) {
       setSaveStatus('saving');
+      setSaveError(null);
       try {
         const { error } = await supabase.from('salud').upsert(
           { id: SALUD_ID, registros: reg, updated_at: new Date().toISOString() },
@@ -83,8 +85,10 @@ export default function Salud() {
         if (error) throw error;
         setSaveStatus('saved');
       } catch (err) {
+        const msg = err?.message || err?.error_description || String(err);
         console.error('Error guardando salud:', err);
         setSaveStatus('error');
+        setSaveError(msg);
         try {
           localStorage.setItem(STORAGE_KEY, JSON.stringify(reg));
         } catch (_) {}
@@ -151,12 +155,13 @@ export default function Salud() {
             </div>
             Salud
           </h1>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap justify-end">
+            {!supabase && <span className="text-xs text-amber-600" title="Configura .env con VITE_SUPABASE_URL y VITE_SUPABASE_ANON_KEY">Solo local</span>}
             {supabase && (
               <span className="text-xs">
                 {saveStatus === 'saving' && <span className="flex items-center gap-1 text-amber-600"><Loader2 size={12} className="animate-spin" /> Guardando...</span>}
                 {saveStatus === 'saved' && <span className="text-emerald-600">Guardado</span>}
-                {saveStatus === 'error' && <span className="text-red-600">Error</span>}
+                {saveStatus === 'error' && <span className="text-red-600" title={saveError || 'Error'}>Error{saveError ? `: ${saveError}` : ''}</span>}
               </span>
             )}
           </div>

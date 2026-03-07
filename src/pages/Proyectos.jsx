@@ -62,6 +62,7 @@ export default function Proyectos() {
   const [selectedProject, setSelectedProject] = useState(null);
   const [isLoading, setIsLoading] = useState(!!supabase);
   const [saveStatus, setSaveStatus] = useState('saved');
+  const [saveError, setSaveError] = useState(null);
   const [newName, setNewName] = useState('');
   const [editingTags, setEditingTags] = useState(null);
   const [newTag, setNewTag] = useState('');
@@ -97,14 +98,17 @@ export default function Proyectos() {
   const saveToBackend = useCallback(async (list) => {
     if (supabase) {
       setSaveStatus('saving');
+      setSaveError(null);
       try {
         const payload = list.map((p) => ({ name: p.name, color: p.color, tags: p.tags || [], stages: p.stages || [] }));
         const { error } = await supabase.from('projects').upsert(payload, { onConflict: 'name' });
         if (error) throw error;
         setSaveStatus('saved');
       } catch (err) {
+        const msg = err?.message || err?.error_description || String(err);
         console.error('Error guardando proyectos:', err);
         setSaveStatus('error');
+        setSaveError(msg);
         try {
           localStorage.setItem(STORAGE_KEY, JSON.stringify(list));
         } catch (_) {}
@@ -289,12 +293,13 @@ export default function Proyectos() {
             </div>
             {current ? current.name : 'Proyectos'}
           </h1>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap justify-end">
+            {!supabase && <span className="text-xs text-amber-600" title="Configura .env con VITE_SUPABASE_*">Solo local</span>}
             {supabase && (
               <span className="text-xs">
                 {saveStatus === 'saving' && <span className="flex items-center gap-1 text-amber-600"><Loader2 size={12} className="animate-spin" /> Guardando...</span>}
                 {saveStatus === 'saved' && <span className="text-emerald-600">Guardado</span>}
-                {saveStatus === 'error' && <span className="text-red-600">Error</span>}
+                {saveStatus === 'error' && <span className="text-red-600" title={saveError || 'Error'}>Error{saveError ? `: ${saveError}` : ''}</span>}
               </span>
             )}
           </div>

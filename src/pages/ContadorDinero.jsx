@@ -111,6 +111,7 @@ export default function ContadorDinero() {
   const [aCobrar, setACobrar] = useState([]);
   const [isLoading, setIsLoading] = useState(!!supabase);
   const [saveStatus, setSaveStatus] = useState('saved');
+  const [saveError, setSaveError] = useState(null);
   const saveTimeoutRef = useRef(null);
 
   const totalActual = useMemo(
@@ -161,8 +162,16 @@ export default function ContadorDinero() {
                 setDineroActual([{ id: Date.now(), concepto: 'Efectivo (migrado)', monto: total }]);
               }
             }
+          } else if (error) {
+            console.error('Error cargando billetera desde Supabase:', error.message || error);
+            setSaveError(error.message || 'Error al cargar. ¿Ejecutaste supabase-setup.sql?');
+            setSaveStatus('error');
           }
-        } catch (_) {}
+        } catch (e) {
+          console.error('Error cargando billetera:', e);
+          setSaveError(e?.message || 'Error al cargar');
+          setSaveStatus('error');
+        }
         setIsLoading(false);
       })();
     } else {
@@ -181,6 +190,7 @@ export default function ContadorDinero() {
   const saveToBackend = useCallback(async (dineroActualData, aCobrarData) => {
     if (supabase) {
       setSaveStatus('saving');
+      setSaveError(null);
       try {
         const { error } = await supabase.from('billetera').upsert(
           {
@@ -194,8 +204,10 @@ export default function ContadorDinero() {
         if (error) throw error;
         setSaveStatus('saved');
       } catch (err) {
+        const msg = err?.message || err?.error_description || String(err);
         console.error('Error guardando billetera:', err);
         setSaveStatus('error');
+        setSaveError(msg);
         try {
           localStorage.setItem(STORAGE_KEY, JSON.stringify({ dineroActual: dineroActualData, aCobrar: aCobrarData }));
         } catch (_) {}
@@ -254,12 +266,21 @@ export default function ContadorDinero() {
             </div>
             Billetera
           </h1>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap justify-end">
+            {!supabase && (
+              <span className="text-xs text-amber-600" title="Crea un archivo .env con VITE_SUPABASE_URL y VITE_SUPABASE_ANON_KEY para guardar en la nube">
+                Solo local
+              </span>
+            )}
             {supabase && (
               <span className="text-xs">
                 {saveStatus === 'saving' && <span className="flex items-center gap-1 text-amber-600"><Loader2 size={12} className="animate-spin" /> Guardando...</span>}
                 {saveStatus === 'saved' && <span className="text-emerald-600">Guardado</span>}
-                {saveStatus === 'error' && <span className="text-red-600">Error</span>}
+                {saveStatus === 'error' && (
+                  <span className="text-red-600" title={saveError || 'Error al guardar'}>
+                    Error{saveError ? `: ${saveError}` : ''}
+                  </span>
+                )}
               </span>
             )}
           </div>
