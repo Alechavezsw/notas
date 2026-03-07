@@ -7,7 +7,7 @@ import {
   FileText, Trello, CheckSquare, ChevronLeft, ChevronRight, Calendar,
   User, Image as ImageIcon, UploadCloud, Grid, Layers, Tag,
   Link as LinkIcon, ExternalLink, Book, Tv, Plane, Dumbbell, Wrench,
-  ShoppingCart, Heart, Map, AlertCircle, ListTodo, Loader2, Folder,
+  ShoppingCart, Heart, Map, AlertCircle, ListTodo, Loader2, Folder, Brain,
   Bold, Underline, Italic, Strikethrough, List, Pin, PinOff, DollarSign
 } from 'lucide-react';
 
@@ -879,6 +879,7 @@ export default function App() {
           <Link to="/dinero" className="w-full flex items-center space-x-3 px-3 py-2 rounded-lg transition-colors text-sm font-medium text-gray-600 hover:bg-gray-50 hover:text-indigo-600 group"><DollarSign size={18} className="text-gray-400 group-hover:text-indigo-500" /><span>Billetera</span></Link>
           <Link to="/salud" className="w-full flex items-center space-x-3 px-3 py-2 rounded-lg transition-colors text-sm font-medium text-gray-600 hover:bg-gray-50 hover:text-indigo-600 group"><Heart size={18} className="text-gray-400 group-hover:text-indigo-500" /><span>Salud</span></Link>
           <Link to="/proyectos" className="w-full flex items-center space-x-3 px-3 py-2 rounded-lg transition-colors text-sm font-medium text-gray-600 hover:bg-gray-50 hover:text-indigo-600 group"><Folder size={18} className="text-gray-400 group-hover:text-indigo-500" /><span>Proyectos</span></Link>
+          <Link to="/mapa-mental" className="w-full flex items-center space-x-3 px-3 py-2 rounded-lg transition-colors text-sm font-medium text-gray-600 hover:bg-gray-50 hover:text-indigo-600 group"><Brain size={18} className="text-gray-400 group-hover:text-indigo-500" /><span>Mapa mental</span></Link>
           <a href="https://ale.cosechacreativa.com.ar/" target="_blank" rel="noopener noreferrer" className="w-full flex items-center space-x-3 px-3 py-2 rounded-lg transition-colors text-sm font-medium text-gray-600 hover:bg-gray-50 hover:text-indigo-600 group"><LinkIcon size={18} className="text-gray-400 group-hover:text-indigo-500" /><span>Herramientas</span><ExternalLink size={12} className="opacity-0 group-hover:opacity-100 ml-auto" /></a>
           <div className="flex items-center justify-between mt-6 mb-2 px-2"><div className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Proyectos</div><button onClick={() => setIsCreatingProject(true)} className="text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded p-1 transition-colors"><Plus size={14} /></button></div>
           {isCreatingProject && (<div className="px-2 mb-2"><div className="flex items-center gap-2 bg-gray-50 p-1 rounded-lg border border-indigo-200"><input autoFocus type="text" placeholder="Nombre..." value={newProjectName} onChange={(e) => setNewProjectName(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') addProject(); if (e.key === 'Escape') setIsCreatingProject(false); }} className="w-full bg-transparent text-sm px-2 focus:outline-none" /><button onClick={addProject} className="text-indigo-600 hover:bg-indigo-100 rounded p-1"><CheckSquare size={14} /></button></div></div>)}

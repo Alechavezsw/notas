@@ -5,6 +5,7 @@ import App from './App.jsx'
 import ContadorDinero from './pages/ContadorDinero.jsx'
 import Salud from './pages/Salud.jsx'
 import Proyectos from './pages/Proyectos.jsx'
+import MapaMental from './pages/MapaMental.jsx'
 import './index.css'
 
 ReactDOM.createRoot(document.getElementById('root')).render(
@@ -15,6 +16,7 @@ ReactDOM.createRoot(document.getElementById('root')).render(
         <Route path="/dinero" element={<ContadorDinero />} />
         <Route path="/salud" element={<Salud />} />
         <Route path="/proyectos" element={<Proyectos />} />
+        <Route path="/mapa-mental" element={<MapaMental />} />
       </Routes>
     </BrowserRouter>
   </React.StrictMode>,

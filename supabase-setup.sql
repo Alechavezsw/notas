@@ -155,3 +155,23 @@ INSERT INTO salud (id, registros)
 VALUES ('default', '{}'::jsonb)
 ON CONFLICT (id) DO NOTHING;
 
+-- Tabla mind_maps (mapas mentales: árbol de nodos)
+-- id = 'default', data = { root: { id, text, children: [...] } }
+CREATE TABLE IF NOT EXISTS mind_maps (
+  id TEXT PRIMARY KEY DEFAULT 'default',
+  data JSONB NOT NULL DEFAULT '{"root":{"id":0,"text":"Centro","children":[]}}'::jsonb,
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+CREATE TRIGGER update_mind_maps_updated_at BEFORE UPDATE ON mind_maps
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+ALTER TABLE mind_maps ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Allow all operations on mind_maps" ON mind_maps
+    FOR ALL USING (true) WITH CHECK (true);
+
+INSERT INTO mind_maps (id, data)
+VALUES ('default', '{"root":{"id":0,"text":"Centro","children":[]}}'::jsonb)
+ON CONFLICT (id) DO NOTHING;
+
