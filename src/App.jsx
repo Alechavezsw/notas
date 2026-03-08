@@ -414,10 +414,121 @@ const SpecialListBlock = ({ listType, items, onChange, onTypeChange }) => {
   );
 };
 
-const GlobalGallery = ({ notes }) => {
-  const allImages = useMemo(() => { const images = []; notes.forEach(note => { note.blocks.forEach(block => { if (block.type === 'image' && block.src) { images.push({ id: block.id || Math.random(), src: block.src, caption: block.caption, noteTitle: note.title, noteDate: note.updatedAt }); } }); }); return images; }, [notes]);
-  if (allImages.length === 0) return (<div className="flex flex-col items-center justify-center h-full text-gray-400 p-8"><ImageIcon size={64} className="mb-4 text-gray-200" /><p className="text-lg font-medium text-gray-500">Galería vacía</p><p className="text-sm">Añade imágenes a tus notas para verlas aquí.</p></div>);
-  return (<div className="p-4 md:p-8 overflow-y-auto h-full pb-20"><h2 className="text-2xl font-bold text-gray-800 mb-6 flex items-center"><Grid size={24} className="mr-2 text-indigo-600" /> Galería de Fotos</h2><div className="columns-2 md:columns-3 lg:columns-4 gap-4 space-y-4">{allImages.map((img, idx) => (<div key={idx} className="break-inside-avoid group relative rounded-xl overflow-hidden shadow-sm hover:shadow-md transition-shadow bg-white border border-gray-100"><div className="bg-gray-50 overflow-hidden cursor-pointer"><img src={img.src} alt={img.caption} className="w-full h-auto object-cover" /></div><div className="p-3"><p className="text-xs font-bold text-gray-700 truncate">{img.caption || "Sin descripción"}</p><p className="text-[10px] text-gray-400 flex items-center mt-1"><FileText size={10} className="mr-1" /> {img.noteTitle}</p></div><div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors pointer-events-none"></div></div>))}</div></div>);
+const GlobalGallery = ({ notes, onOpenNote }) => {
+  const [lightbox, setLightbox] = useState(null);
+  const allImages = useMemo(() => {
+    const images = [];
+    (notes || []).forEach(note => {
+      let blocks = note.blocks;
+      if (typeof blocks === 'string') {
+        try { blocks = JSON.parse(blocks); } catch { blocks = []; }
+      }
+      if (!Array.isArray(blocks)) blocks = [];
+      blocks.forEach(block => {
+        const src = block.src ?? block.url;
+        if (block.type === 'image' && src) {
+          images.push({
+            id: block.id || Math.random(),
+            src,
+            caption: block.caption ?? '',
+            noteTitle: note.title ?? 'Sin título',
+            noteDate: note.updatedAt,
+            noteId: note.id != null ? Number(note.id) : note.id,
+          });
+        }
+      });
+    });
+    return images;
+  }, [notes]);
+
+  if (allImages.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center h-full text-gray-400 p-8">
+        <ImageIcon size={64} className="mb-4 text-gray-200" />
+        <p className="text-lg font-medium text-gray-500">Galería vacía</p>
+        <p className="text-sm">Añade imágenes a tus notas para verlas aquí.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="p-4 md:p-8 overflow-y-auto h-full pb-20">
+      <h2 className="text-2xl font-bold text-gray-800 mb-6 flex items-center">
+        <Grid size={24} className="mr-2 text-indigo-600" /> Galería de Fotos
+      </h2>
+      <div className="columns-2 md:columns-3 lg:columns-4 gap-4 space-y-4">
+        {allImages.map((img, idx) => (
+          <div
+            key={img.id || idx}
+            role="button"
+            tabIndex={0}
+            onClick={() => setLightbox(img)}
+            onKeyDown={(e) => e.key === 'Enter' && setLightbox(img)}
+            className="break-inside-avoid group relative rounded-xl overflow-hidden shadow-sm hover:shadow-md transition-shadow bg-white border border-gray-100 cursor-pointer"
+          >
+            <div className="bg-gray-50 overflow-hidden">
+              <img src={img.src} alt={img.caption || ''} className="w-full h-auto object-cover" />
+            </div>
+            <div className="p-3">
+              <p className="text-xs font-bold text-gray-700 truncate">{img.caption || 'Sin descripción'}</p>
+              <p className="text-[10px] text-gray-400 flex items-center mt-1">
+                <FileText size={10} className="mr-1" /> {img.noteTitle}
+              </p>
+            </div>
+            <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors" />
+          </div>
+        ))}
+      </div>
+
+      {lightbox && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm"
+          onClick={() => setLightbox(null)}
+          role="dialog"
+          aria-modal="true"
+          aria-label="Vista ampliada"
+        >
+          <div
+            className="relative max-w-4xl max-h-[90vh] w-full flex flex-col items-center"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <img
+              src={lightbox.src}
+              alt={lightbox.caption || ''}
+              className="max-h-[75vh] w-auto object-contain rounded-lg shadow-2xl"
+            />
+            <div className="mt-4 bg-white rounded-xl shadow-lg p-4 w-full max-w-md">
+              <p className="text-sm font-medium text-gray-800">{lightbox.caption || 'Sin descripción'}</p>
+              <p className="text-xs text-gray-500 mt-1 flex items-center gap-1">
+                <FileText size={12} /> {lightbox.noteTitle}
+              </p>
+              {onOpenNote && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    onOpenNote(lightbox.noteId);
+                    setLightbox(null);
+                  }}
+                  className="mt-3 w-full py-2.5 px-4 rounded-lg bg-indigo-600 text-white text-sm font-medium hover:bg-indigo-700 transition-colors flex items-center justify-center gap-2"
+                >
+                  <FileText size={16} />
+                  Ir a la nota
+                </button>
+              )}
+            </div>
+            <button
+              type="button"
+              onClick={() => setLightbox(null)}
+              className="absolute -top-12 right-0 p-2 rounded-full text-white hover:bg-white/20 transition-colors"
+              aria-label="Cerrar"
+            >
+              <X size={24} />
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
 };
 
 // --- APP ---
@@ -452,12 +563,20 @@ export default function App() {
           const { data: projectsData, error: projectsError } = await supabase.from('projects').select('*');
 
           if (!notesError && notesData) {
-            const formattedNotes = notesData.map(n => ({
-              ...n, 
-              id: Number(n.id),
-              pinned: n.pinned || false,
-              updatedAt: n.updated_at || n.updatedAt || new Date().toISOString()
-            }));
+            const formattedNotes = notesData.map(n => {
+              let blocks = n.blocks;
+              if (typeof blocks === 'string') {
+                try { blocks = JSON.parse(blocks); } catch { blocks = []; }
+              }
+              if (!Array.isArray(blocks)) blocks = [];
+              return {
+                ...n,
+                id: Number(n.id),
+                blocks,
+                pinned: n.pinned || false,
+                updatedAt: n.updated_at || n.updatedAt || new Date().toISOString(),
+              };
+            });
             setNotes(formattedNotes);
           }
           if (!projectsError && projectsData) {
@@ -942,7 +1061,16 @@ export default function App() {
       </aside>
       <main className="flex-1 flex flex-col h-full w-full bg-white md:bg-gray-50/50 relative overflow-hidden">
         <header className="md:hidden h-14 bg-white border-b border-gray-200 flex items-center px-4 justify-between sticky top-0 z-10 flex-shrink-0"><button onClick={() => setIsSidebarOpen(true)} className="text-gray-600"><Menu size={24} /></button><span className="font-semibold text-gray-700 truncate max-w-[200px]">{viewMode === 'gallery' ? 'Galería Global' : activeNote?.title}</span><div className="w-6"></div></header>
-        {viewMode === 'gallery' ? (<GlobalGallery notes={notes} />) : activeNote ? (<div className="flex-1 overflow-y-auto"><div className="max-w-4xl mx-auto px-4 md:px-6 py-6 md:py-12 min-h-full bg-white shadow-sm md:my-6 md:rounded-xl border-gray-100 md:border pb-32"><div className="flex items-center gap-2 mb-4 overflow-hidden"><Tag size={14} className="text-gray-400 flex-shrink-0" /><div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">{projects.map(proj => (<Badge key={proj.name} colorKey={proj.color} active={activeNote.category === proj.name} onClick={() => updateNoteCategory(proj.name)}>{proj.name}</Badge>))}</div></div><input type="text" value={activeNote.title} onChange={(e) => updateNoteTitle(e.target.value)} placeholder="Título de la nota" className="w-full text-2xl md:text-4xl font-bold text-gray-900 placeholder-gray-300 border-none focus:outline-none bg-transparent mb-6 md:mb-8" /><div className="space-y-4">{activeNote.blocks.map((block, index) => (<div key={index} className="group relative pl-2 hover:pl-0 transition-all duration-200"><div className="absolute -left-8 top-2 opacity-0 group-hover:opacity-100 flex flex-col items-center space-y-1 transition-opacity z-10"><button onClick={() => deleteBlock(index)} className="p-1 text-gray-300 hover:text-red-500 transition-colors bg-white rounded-full shadow-sm border border-gray-100"><Trash2 size={14} /></button></div><div className="min-h-[2rem]">{block.type === 'text' && (<TextBlock content={block.content || ''} onChange={(val) => updateBlock(index, { content: val })} />)}{block.type === 'checklist' && (<div className="my-4 space-y-2">{block.items?.map((item, idx) => (<div key={item.id || idx} className="flex items-center gap-3 p-2 rounded-lg hover:bg-gray-50 group"><input type="checkbox" checked={item.checked || false} onChange={(e) => { const newItems = [...(block.items || [])]; newItems[idx] = { ...newItems[idx], checked: e.target.checked }; updateBlock(index, { items: newItems }); }} className="w-5 h-5 text-indigo-600 rounded focus:ring-indigo-500 border-gray-300" /><input type="text" value={item.text || ''} onChange={(e) => { const newItems = [...(block.items || [])]; newItems[idx] = { ...newItems[idx], text: e.target.value }; updateBlock(index, { items: newItems }); }} placeholder="Elemento de lista..." className={`flex-1 bg-transparent focus:outline-none text-base md:text-sm ${item.checked ? 'text-gray-400 line-through' : 'text-gray-700'}`} /><button onClick={() => { const newItems = block.items.filter((_, i) => i !== idx); updateBlock(index, { items: newItems.length > 0 ? newItems : [{ id: Date.now(), text: '', checked: false }] }); }} className="opacity-0 group-hover:opacity-100 text-gray-300 hover:text-red-500 transition-opacity"><X size={16} /></button></div>))}<button onClick={() => { const newItems = [...(block.items || []), { id: Date.now(), text: '', checked: false }]; updateBlock(index, { items: newItems }); }} className="mt-2 text-sm text-gray-500 hover:text-indigo-600 flex items-center gap-2"><Plus size={16} /> Añadir elemento</button></div>)}{block.type === 'columns' && (<ColumnsBlock leftContent={block.left} rightContent={block.right} onLeftChange={(val) => updateBlock(index, { left: val })} onRightChange={(val) => updateBlock(index, { right: val })} />)}{block.type === 'table' && (<TableBlock data={block.data} headers={block.headers} onChange={(data, headers) => updateBlock(index, { data, headers })} />)}{block.type === 'kanban' && (<KanbanBlock columns={block.columns} onChange={(columns) => updateBlock(index, { columns })} />)}{block.type === 'project' && (<ProjectPlanBlock tasks={block.tasks} onChange={(tasks) => updateBlock(index, { tasks })} />)}{block.type === 'special_list' && (<SpecialListBlock listType={block.listType} items={block.items} onChange={(items) => updateBlock(index, { items })} onTypeChange={(listType) => updateBlock(index, { listType })} />)}{block.type === 'image' && (<ImageBlock src={block.src} caption={block.caption} onChange={(data) => updateBlock(index, data)} />)}</div></div>))}</div><div className="h-32 cursor-text" onClick={() => { const lastBlock = activeNote.blocks[activeNote.blocks.length - 1]; if (!lastBlock || lastBlock.type !== 'text' || lastBlock.content !== '') { addBlock('text'); } }}></div></div></div>) : (<div className="flex-1 flex flex-col items-center justify-center text-gray-400 p-8"><FileText size={64} className="mb-4 text-gray-200" /><p className="text-lg font-medium text-gray-500">Selecciona o crea una nota</p><Button onClick={createNote} variant="primary" className="mt-6">Crear primera nota</Button></div>)}
+        {viewMode === 'gallery' ? (
+          <GlobalGallery
+            notes={notes}
+            onOpenNote={(noteId) => {
+              setActiveNoteId(noteId);
+              setViewMode('notes');
+              if (window.innerWidth < 768) setIsSidebarOpen(false);
+            }}
+          />
+        ) : activeNote ? (<div className="flex-1 overflow-y-auto"><div className="max-w-4xl mx-auto px-4 md:px-6 py-6 md:py-12 min-h-full bg-white shadow-sm md:my-6 md:rounded-xl border-gray-100 md:border pb-32"><div className="flex items-center gap-2 mb-4 overflow-hidden"><Tag size={14} className="text-gray-400 flex-shrink-0" /><div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">{projects.map(proj => (<Badge key={proj.name} colorKey={proj.color} active={activeNote.category === proj.name} onClick={() => updateNoteCategory(proj.name)}>{proj.name}</Badge>))}</div></div><input type="text" value={activeNote.title} onChange={(e) => updateNoteTitle(e.target.value)} placeholder="Título de la nota" className="w-full text-2xl md:text-4xl font-bold text-gray-900 placeholder-gray-300 border-none focus:outline-none bg-transparent mb-6 md:mb-8" /><div className="space-y-4">{activeNote.blocks.map((block, index) => (<div key={index} className="group relative pl-2 hover:pl-0 transition-all duration-200"><div className="absolute -left-8 top-2 opacity-0 group-hover:opacity-100 flex flex-col items-center space-y-1 transition-opacity z-10"><button onClick={() => deleteBlock(index)} className="p-1 text-gray-300 hover:text-red-500 transition-colors bg-white rounded-full shadow-sm border border-gray-100"><Trash2 size={14} /></button></div><div className="min-h-[2rem]">{block.type === 'text' && (<TextBlock content={block.content || ''} onChange={(val) => updateBlock(index, { content: val })} />)}{block.type === 'checklist' && (<div className="my-4 space-y-2">{block.items?.map((item, idx) => (<div key={item.id || idx} className="flex items-center gap-3 p-2 rounded-lg hover:bg-gray-50 group"><input type="checkbox" checked={item.checked || false} onChange={(e) => { const newItems = [...(block.items || [])]; newItems[idx] = { ...newItems[idx], checked: e.target.checked }; updateBlock(index, { items: newItems }); }} className="w-5 h-5 text-indigo-600 rounded focus:ring-indigo-500 border-gray-300" /><input type="text" value={item.text || ''} onChange={(e) => { const newItems = [...(block.items || [])]; newItems[idx] = { ...newItems[idx], text: e.target.value }; updateBlock(index, { items: newItems }); }} placeholder="Elemento de lista..." className={`flex-1 bg-transparent focus:outline-none text-base md:text-sm ${item.checked ? 'text-gray-400 line-through' : 'text-gray-700'}`} /><button onClick={() => { const newItems = block.items.filter((_, i) => i !== idx); updateBlock(index, { items: newItems.length > 0 ? newItems : [{ id: Date.now(), text: '', checked: false }] }); }} className="opacity-0 group-hover:opacity-100 text-gray-300 hover:text-red-500 transition-opacity"><X size={16} /></button></div>))}<button onClick={() => { const newItems = [...(block.items || []), { id: Date.now(), text: '', checked: false }]; updateBlock(index, { items: newItems }); }} className="mt-2 text-sm text-gray-500 hover:text-indigo-600 flex items-center gap-2"><Plus size={16} /> Añadir elemento</button></div>)}{block.type === 'columns' && (<ColumnsBlock leftContent={block.left} rightContent={block.right} onLeftChange={(val) => updateBlock(index, { left: val })} onRightChange={(val) => updateBlock(index, { right: val })} />)}{block.type === 'table' && (<TableBlock data={block.data} headers={block.headers} onChange={(data, headers) => updateBlock(index, { data, headers })} />)}{block.type === 'kanban' && (<KanbanBlock columns={block.columns} onChange={(columns) => updateBlock(index, { columns })} />)}{block.type === 'project' && (<ProjectPlanBlock tasks={block.tasks} onChange={(tasks) => updateBlock(index, { tasks })} />)}{block.type === 'special_list' && (<SpecialListBlock listType={block.listType} items={block.items} onChange={(items) => updateBlock(index, { items })} onTypeChange={(listType) => updateBlock(index, { listType })} />)}{block.type === 'image' && (<ImageBlock src={block.src} caption={block.caption} onChange={(data) => updateBlock(index, data)} />)}</div></div>))}</div><div className="h-32 cursor-text" onClick={() => { const lastBlock = activeNote.blocks[activeNote.blocks.length - 1]; if (!lastBlock || lastBlock.type !== 'text' || lastBlock.content !== '') { addBlock('text'); } }}></div></div></div>) : (<div className="flex-1 flex flex-col items-center justify-center text-gray-400 p-8"><FileText size={64} className="mb-4 text-gray-200" /><p className="text-lg font-medium text-gray-500">Selecciona o crea una nota</p><Button onClick={createNote} variant="primary" className="mt-6">Crear primera nota</Button></div>)}
         {viewMode === 'notes' && activeNote && (<div className="fixed bottom-6 left-0 right-0 flex justify-center px-4 z-20 pointer-events-none"><div className="bg-white/95 backdrop-blur-md shadow-2xl border border-gray-200/50 rounded-full p-2 flex items-center space-x-1 sm:space-x-2 pointer-events-auto overflow-x-auto max-w-full scrollbar-hide"><button onClick={() => addBlock('text')} title="Texto" className="btn-icon flex-shrink-0 flex items-center space-x-2 px-3 py-3 rounded-full hover:bg-gray-100 text-gray-700 transition-colors"><Type size={20} className="text-indigo-500" /></button><div className="w-px h-6 bg-gray-200 flex-shrink-0"></div><button onClick={() => addBlock('checklist')} title="Checklist" className="btn-icon flex-shrink-0 flex items-center space-x-2 px-3 py-3 rounded-full hover:bg-gray-100 text-gray-700 transition-colors"><CheckSquare size={20} className="text-green-500" /></button><div className="w-px h-6 bg-gray-200 flex-shrink-0"></div><button onClick={() => addBlock('columns')} title="Columnas" className="btn-icon flex-shrink-0 flex items-center space-x-2 px-3 py-3 rounded-full hover:bg-gray-100 text-gray-700 transition-colors"><Columns size={20} className="text-emerald-500" /></button><div className="w-px h-6 bg-gray-200 flex-shrink-0"></div><button onClick={() => addBlock('table')} title="Tabla" className="btn-icon flex-shrink-0 flex items-center space-x-2 px-3 py-3 rounded-full hover:bg-gray-100 text-gray-700 transition-colors"><Table size={20} className="text-orange-500" /></button><div className="w-px h-6 bg-gray-200 flex-shrink-0"></div><button onClick={() => addBlock('kanban')} title="Tablero Kanban" className="btn-icon flex-shrink-0 flex items-center space-x-2 px-3 py-3 rounded-full hover:bg-gray-100 text-gray-700 transition-colors"><Trello size={20} className="text-blue-500" /></button><div className="w-px h-6 bg-gray-200 flex-shrink-0"></div><button onClick={() => addBlock('project')} title="Plan de Proyecto" className="btn-icon flex-shrink-0 flex items-center space-x-2 px-3 py-3 rounded-full hover:bg-gray-100 text-gray-700 transition-colors"><CheckSquare size={20} className="text-pink-500" /></button><div className="w-px h-6 bg-gray-200 flex-shrink-0"></div><button onClick={() => addBlock('special_list')} title="Checklist Especial" className="btn-icon flex-shrink-0 flex items-center space-x-2 px-3 py-3 rounded-full hover:bg-gray-100 text-gray-700 transition-colors"><ListTodo size={20} className="text-teal-500" /></button><div className="w-px h-6 bg-gray-200 flex-shrink-0"></div><button onClick={() => addBlock('image')} title="Imagen" className="btn-icon flex-shrink-0 flex items-center space-x-2 px-3 py-3 rounded-full hover:bg-gray-100 text-gray-700 transition-colors"><ImageIcon size={20} className="text-purple-500" /></button></div></div>)}
       </main>
     </div>
