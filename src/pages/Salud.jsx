@@ -1,6 +1,17 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { createClient } from '@supabase/supabase-js';
+import {
+  LineChart,
+  Line,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+} from 'recharts';
 import {
   ArrowLeft,
   Heart,
@@ -119,11 +130,31 @@ export default function Salud() {
     }));
   };
 
-  const diasConDatos = Object.keys(registros)
-    .filter((k) => registros[k].peso || registros[k].vasosAgua || registros[k].horasSueno || registros[k].animo)
-    .sort()
-    .reverse()
-    .slice(0, 14);
+  const diasConDatos = useMemo(
+    () =>
+      Object.keys(registros)
+        .filter((k) => registros[k].peso || registros[k].vasosAgua || registros[k].horasSueno || registros[k].animo)
+        .sort()
+        .reverse()
+        .slice(0, 14),
+    [registros]
+  );
+
+  const chartData = useMemo(() => {
+    return [...diasConDatos].reverse().map((key) => {
+      const r = registros[key] || {};
+      const date = new Date(key);
+      const label = date.toLocaleDateString('es-AR', { day: 'numeric', month: 'short' });
+      return {
+        key,
+        label,
+        peso: r.peso ? Number(r.peso) : null,
+        vasos: r.vasosAgua ?? 0,
+        sueno: r.horasSueno ? Number(r.horasSueno) : null,
+        animo: r.animo ?? null,
+      };
+    });
+  }, [diasConDatos, registros]);
 
   if (isLoading) {
     return (
@@ -286,6 +317,66 @@ export default function Salud() {
             ))}
           </div>
         </section>
+
+        {/* Gráficos */}
+        {chartData.length > 0 && (
+          <section className="rounded-2xl bg-white/90 backdrop-blur border border-gray-200/60 shadow-lg shadow-gray-100 overflow-hidden mb-6">
+            <div className="bg-gradient-to-r from-rose-500/10 to-sky-500/10 px-5 py-4 border-b border-gray-100 flex items-center gap-2">
+              <TrendingUp size={20} className="text-rose-500" />
+              <h2 className="font-semibold text-gray-800">Gráficos (últimos días)</h2>
+            </div>
+            <div className="p-4 space-y-6">
+              {chartData.some((d) => d.peso != null) && (
+                <div>
+                  <h3 className="text-sm font-medium text-gray-600 mb-2 flex items-center gap-2">
+                    <Scale size={16} className="text-sky-600" /> Peso (kg)
+                  </h3>
+                  <ResponsiveContainer width="100%" height={180}>
+                    <LineChart data={chartData} margin={{ top: 5, right: 10, left: 0, bottom: 5 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                      <XAxis dataKey="label" tick={{ fontSize: 11 }} />
+                      <YAxis tick={{ fontSize: 11 }} domain={['auto', 'auto']} />
+                      <Tooltip formatter={(v) => (v != null ? `${v} kg` : '-')} labelFormatter={(l) => l} />
+                      <Line type="monotone" dataKey="peso" stroke="#0ea5e9" strokeWidth={2} dot={{ r: 4 }} name="Peso" connectNulls />
+                    </LineChart>
+                  </ResponsiveContainer>
+                </div>
+              )}
+              {chartData.some((d) => d.vasos > 0) && (
+                <div>
+                  <h3 className="text-sm font-medium text-gray-600 mb-2 flex items-center gap-2">
+                    <Droplets size={16} className="text-blue-600" /> Vasos de agua
+                  </h3>
+                  <ResponsiveContainer width="100%" height={180}>
+                    <BarChart data={chartData} margin={{ top: 5, right: 10, left: 0, bottom: 5 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                      <XAxis dataKey="label" tick={{ fontSize: 11 }} />
+                      <YAxis tick={{ fontSize: 11 }} allowDecimals={false} />
+                      <Tooltip />
+                      <Bar dataKey="vasos" fill="#3b82f6" name="Vasos" radius={[4, 4, 0, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              )}
+              {chartData.some((d) => d.sueno != null) && (
+                <div>
+                  <h3 className="text-sm font-medium text-gray-600 mb-2 flex items-center gap-2">
+                    <Moon size={16} className="text-indigo-600" /> Horas de sueño
+                  </h3>
+                  <ResponsiveContainer width="100%" height={180}>
+                    <LineChart data={chartData} margin={{ top: 5, right: 10, left: 0, bottom: 5 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                      <XAxis dataKey="label" tick={{ fontSize: 11 }} />
+                      <YAxis tick={{ fontSize: 11 }} domain={[0, 12]} />
+                      <Tooltip formatter={(v) => (v != null ? `${v} h` : '-')} labelFormatter={(l) => l} />
+                      <Line type="monotone" dataKey="sueno" stroke="#6366f1" strokeWidth={2} dot={{ r: 4 }} name="Sueño (h)" connectNulls />
+                    </LineChart>
+                  </ResponsiveContainer>
+                </div>
+              )}
+            </div>
+          </section>
+        )}
 
         {/* Historial reciente */}
         {diasConDatos.length > 0 && (

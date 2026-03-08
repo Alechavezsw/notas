@@ -11,6 +11,8 @@ import {
   Loader2,
   FolderPlus,
   ChevronRight,
+  Calendar,
+  LayoutGrid,
 } from 'lucide-react';
 
 const STORAGE_KEY = 'alenotes_projects_v2';
@@ -41,14 +43,14 @@ const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
 const supabase = supabaseUrl && supabaseKey ? createClient(supabaseUrl, supabaseKey) : null;
 
 function normalizeStages(stages) {
-  if (!Array.isArray(stages) || stages.length === 0) return DEFAULT_STAGES.map((s, i) => ({ ...s, id: s.id || `s${i}`, order: i, tasks: (s.tasks || []).map((t) => ({ id: t.id || Date.now() + i, text: t.text || '', done: !!t.done })) }));
+  if (!Array.isArray(stages) || stages.length === 0) return DEFAULT_STAGES.map((s, i) => ({ ...s, id: s.id || `s${i}`, order: i, tasks: (s.tasks || []).map((t) => ({ id: t.id || Date.now() + i, text: t.text || '', done: !!t.done, dueDate: t.dueDate || null })) }));
   return stages
     .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
     .map((s, i) => ({
       id: s.id || `stage-${i}`,
       name: s.name || `Etapa ${i + 1}`,
       order: i,
-      tasks: (s.tasks || []).map((t) => ({ id: t.id || Date.now() + Math.random(), text: t.text || '', done: !!t.done })),
+      tasks: (s.tasks || []).map((t) => ({ id: t.id || Date.now() + Math.random(), text: t.text || '', done: !!t.done, dueDate: t.dueDate || null })),
     }));
 }
 
@@ -66,6 +68,8 @@ export default function Proyectos() {
   const [newName, setNewName] = useState('');
   const [editingTags, setEditingTags] = useState(null);
   const [newTag, setNewTag] = useState('');
+  const [viewMode, setViewMode] = useState('kanban');
+  const [calendarMonth, setCalendarMonth] = useState(() => new Date());
   const saveTimeoutRef = useRef(null);
 
   useEffect(() => {
@@ -202,7 +206,7 @@ export default function Proyectos() {
       stages: (p.stages || []).map((s) => {
         if (s.id !== stageId) return s;
         const tasks = s.tasks || [];
-        return { ...s, tasks: [...tasks, { id: Date.now() + Math.random(), text: '', done: false }] };
+        return { ...s, tasks: [...tasks, { id: Date.now() + Math.random(), text: '', done: false, dueDate: null }] };
       }),
     }));
   };
@@ -265,6 +269,20 @@ export default function Proyectos() {
   }
 
   const current = selectedProject ? getProject(selectedProject) : null;
+
+  const tasksByDate = React.useMemo(() => {
+    if (!current?.stages) return {};
+    const map = {};
+    current.stages.forEach((stage) => {
+      (stage.tasks || []).forEach((task) => {
+        if (task.dueDate) {
+          if (!map[task.dueDate]) map[task.dueDate] = [];
+          map[task.dueDate].push({ ...task, stageName: stage.name });
+        }
+      });
+    });
+    return map;
+  }, [current]);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-violet-50/80 via-white to-indigo-50/80">
@@ -359,23 +377,97 @@ export default function Proyectos() {
             )}
           </>
         ) : (
-          <ProjectBoard
-            project={current}
-            theme={COLOR_PALETTE[current.color] || COLOR_PALETTE.gray}
-            onSetColor={() => setProjectColor(current.name)}
-            onAddStage={() => addStage(current.name)}
-            onUpdateStageName={(stageId, name) => updateStageName(current.name, stageId, name)}
-            onRemoveStage={(stageId) => removeStage(current.name, stageId)}
-            onAddTask={(stageId) => addTask(current.name, stageId)}
-            onUpdateTask={(stageId, taskId, field, value) => updateTask(current.name, stageId, taskId, field, value)}
-            onRemoveTask={(stageId, taskId) => removeTask(current.name, stageId, taskId)}
-            onMoveTask={(fromId, toId, taskId) => moveTask(current.name, fromId, toId, taskId)}
-            onAddTag={(tag) => addTag(current.name, tag)}
-            onRemoveTag={(tag) => removeTag(current.name, tag)}
-            stages={current.stages || []}
-          />
+          <>
+            <div className="flex items-center gap-2 mb-4">
+              <span className="text-sm text-gray-500">Vista:</span>
+              <button type="button" onClick={() => setViewMode('kanban')} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${viewMode === 'kanban' ? 'bg-indigo-100 text-indigo-700' : 'text-gray-600 hover:bg-gray-100'}`}><LayoutGrid size={16} /> Kanban</button>
+              <button type="button" onClick={() => setViewMode('calendar')} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${viewMode === 'calendar' ? 'bg-indigo-100 text-indigo-700' : 'text-gray-600 hover:bg-gray-100'}`}><Calendar size={16} /> Calendario</button>
+            </div>
+            {viewMode === 'kanban' ? (
+              <ProjectBoard
+                project={current}
+                theme={COLOR_PALETTE[current.color] || COLOR_PALETTE.gray}
+                onSetColor={() => setProjectColor(current.name)}
+                onAddStage={() => addStage(current.name)}
+                onUpdateStageName={(stageId, name) => updateStageName(current.name, stageId, name)}
+                onRemoveStage={(stageId) => removeStage(current.name, stageId)}
+                onAddTask={(stageId) => addTask(current.name, stageId)}
+                onUpdateTask={(stageId, taskId, field, value) => updateTask(current.name, stageId, taskId, field, value)}
+                onRemoveTask={(stageId, taskId) => removeTask(current.name, stageId, taskId)}
+                onMoveTask={(fromId, toId, taskId) => moveTask(current.name, fromId, toId, taskId)}
+                onAddTag={(tag) => addTag(current.name, tag)}
+                onRemoveTag={(tag) => removeTag(current.name, tag)}
+                stages={current.stages || []}
+              />
+            ) : (
+              <CalendarView tasksByDate={tasksByDate} month={calendarMonth} setMonth={setCalendarMonth} theme={COLOR_PALETTE[current.color] || COLOR_PALETTE.gray} />
+            )}
+          </>
         )}
       </main>
+    </div>
+  );
+}
+
+function CalendarView({ tasksByDate, month, setMonth, theme }) {
+  const year = month.getFullYear();
+  const monthIdx = month.getMonth();
+  const firstDay = new Date(year, monthIdx, 1);
+  const lastDay = new Date(year, monthIdx + 1, 0);
+  const startPad = firstDay.getDay();
+  const daysInMonth = lastDay.getDate();
+  const weeks = [];
+  let week = [];
+  for (let i = 0; i < startPad; i++) week.push(null);
+  for (let d = 1; d <= daysInMonth; d++) {
+    week.push(d);
+    if (week.length === 7) {
+      weeks.push(week);
+      week = [];
+    }
+  }
+  if (week.length) {
+    while (week.length < 7) week.push(null);
+    weeks.push(week);
+  }
+  const prevMonth = () => setMonth((m) => new Date(m.getFullYear(), m.getMonth() - 1));
+  const nextMonth = () => setMonth((m) => new Date(m.getFullYear(), m.getMonth() + 1));
+
+  const getDateKey = (dayNum) => `${year}-${String(monthIdx + 1).padStart(2, '0')}-${String(dayNum).padStart(2, '0')}`;
+
+  return (
+    <div className="rounded-2xl bg-white/90 backdrop-blur border border-gray-200/60 shadow-lg overflow-hidden">
+      <div className={`px-4 py-3 border-b ${theme.bg} ${theme.border} flex items-center justify-between`}>
+        <button type="button" onClick={prevMonth} className="p-2 rounded-lg hover:bg-white/50 text-gray-600"><ChevronRight size={20} className="rotate-180" /></button>
+        <h2 className="font-semibold text-gray-800 capitalize">{month.toLocaleDateString('es-AR', { month: 'long', year: 'numeric' })}</h2>
+        <button type="button" onClick={nextMonth} className="p-2 rounded-lg hover:bg-white/50 text-gray-600"><ChevronRight size={20} /></button>
+      </div>
+      <div className="p-4">
+        <div className="grid grid-cols-7 gap-1 text-center text-xs font-medium text-gray-500 mb-2">
+          {['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'].map((d) => (
+            <div key={d}>{d}</div>
+          ))}
+        </div>
+        <div className="grid grid-cols-7 gap-1">
+          {weeks.flat().map((d, i) => {
+            const dateKey = d != null ? getDateKey(d) : null;
+            const tasks = dateKey ? (tasksByDate[dateKey] || []) : [];
+            return (
+              <div key={d != null ? dateKey : `e-${i}`} className="min-h-[80px] rounded-lg border border-gray-100 bg-gray-50/50 p-1.5">
+                {d != null && <span className="text-sm font-medium text-gray-700">{d}</span>}
+                {tasks.length > 0 && (
+                  <div className="mt-1 space-y-1">
+                    {tasks.slice(0, 3).map((t) => (
+                      <div key={t.id} className="text-left text-xs truncate px-1.5 py-0.5 rounded bg-white border border-gray-200" title={t.text}>{t.done ? '✓ ' : ''}{t.text || 'Sin título'}</div>
+                    ))}
+                    {tasks.length > 3 && <div className="text-xs text-gray-500">+{tasks.length - 3}</div>}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </div>
     </div>
   );
 }
@@ -460,6 +552,13 @@ function ProjectBoard({
                     onChange={(e) => onUpdateTask(stage.id, task.id, 'text', e.target.value)}
                     placeholder="Tarea..."
                     className={`flex-1 min-w-0 bg-transparent text-sm focus:outline-none focus:ring-0 ${task.done ? 'line-through text-gray-400' : 'text-gray-800'}`}
+                  />
+                  <input
+                    type="date"
+                    value={task.dueDate || ''}
+                    onChange={(e) => onUpdateTask(stage.id, task.id, 'dueDate', e.target.value || null)}
+                    className="opacity-0 group-hover:opacity-100 text-xs border border-gray-200 rounded px-1 py-0.5 bg-white flex-shrink-0"
+                    title="Fecha límite"
                   />
                   <select
                     className="opacity-0 group-hover:opacity-100 text-xs border border-gray-200 rounded px-1 py-0.5 bg-white"

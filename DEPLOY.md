@@ -57,10 +57,13 @@ vercel --prod
 |----------|-------|----------|
 | `VITE_SUPABASE_URL` | `https://tu-proyecto.supabase.co` | Production, Preview, Development |
 | `VITE_SUPABASE_ANON_KEY` | `tu_clave_anonima` | Production, Preview, Development |
+| `GEMINI_API_KEY` | `tu_clave_gemini` | Production, Preview, Development *(recomendado para el Asistente IA)* |
 
 4. Haz clic en **Save**
 
 **Nota:** Si no configuras estas variables, la app funcionará con LocalStorage (solo local, sin sincronización).
+
+**Asistente IA (Gemini):** En Vercel usá **`GEMINI_API_KEY`** (sin `VITE_`). Así la clave queda solo en el servidor (función `/api/gemini`) y no se expone en el navegador. En desarrollo local podés usar `VITE_GEMINI_API_KEY` en tu `.env` para probar sin desplegar. La clave se obtiene en [Google AI Studio](https://aistudio.google.com/apikey).
 
 ### Paso 4: Configurar Supabase (Opcional pero Recomendado)
 
@@ -97,7 +100,7 @@ Para previews de otras ramas:
 
 ### Variables de entorno no funcionan
 
-- Verifica que las variables empiecen con `VITE_`
+- Las variables que usa el frontend deben empezar con `VITE_` (ej. `VITE_SUPABASE_URL`). La de Gemini en servidor es **`GEMINI_API_KEY`** (sin `VITE_`).
 - Asegúrate de que estén configuradas para el entorno correcto (Production)
 - Despliega nuevamente después de agregar variables
 

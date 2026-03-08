@@ -90,6 +90,17 @@ BEGIN
     END IF;
 END $$;
 
+-- Migración: Agregar columna tags a notes (etiquetas por nota)
+DO $$ 
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns 
+        WHERE table_name = 'notes' AND column_name = 'tags'
+    ) THEN
+        ALTER TABLE notes ADD COLUMN tags JSONB NOT NULL DEFAULT '[]'::jsonb;
+    END IF;
+END $$;
+
 -- Migración: Agregar columna stages a projects (etapas + checklist por etapa)
 -- stages = [{ id, name, order, tasks: [{ id, text, done }] }]
 DO $$ 

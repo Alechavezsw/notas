@@ -8,8 +8,10 @@ import {
   User, Image as ImageIcon, UploadCloud, Grid, Layers, Tag,
   Link as LinkIcon, ExternalLink, Book, Tv, Plane, Dumbbell, Wrench,
   ShoppingCart, Heart, Map, AlertCircle, ListTodo, Loader2, Folder, Brain,
-  Bold, Underline, Italic, Strikethrough, List, Pin, PinOff, DollarSign
+  Bold, Underline, Italic, Strikethrough, List, Pin, PinOff, DollarSign,
+  Moon, Sun, Download, Database, Upload
 } from 'lucide-react';
+import { useTheme } from './contexts/ThemeContext';
 
 // --- CONFIGURACIÓN SUPABASE ---
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
@@ -443,9 +445,9 @@ const GlobalGallery = ({ notes, onOpenNote }) => {
 
   if (allImages.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center h-full text-gray-400 p-8">
-        <ImageIcon size={64} className="mb-4 text-gray-200" />
-        <p className="text-lg font-medium text-gray-500">Galería vacía</p>
+      <div className="flex flex-col items-center justify-center h-full text-gray-400 dark:text-gray-500 p-8">
+        <ImageIcon size={64} className="mb-4 text-gray-200 dark:text-gray-600" />
+        <p className="text-lg font-medium text-gray-500 dark:text-gray-400">Galería vacía</p>
         <p className="text-sm">Añade imágenes a tus notas para verlas aquí.</p>
       </div>
     );
@@ -453,7 +455,7 @@ const GlobalGallery = ({ notes, onOpenNote }) => {
 
   return (
     <div className="p-4 md:p-8 overflow-y-auto h-full pb-20">
-      <h2 className="text-2xl font-bold text-gray-800 mb-6 flex items-center">
+      <h2 className="text-2xl font-bold text-gray-800 dark:text-gray-100 mb-6 flex items-center">
         <Grid size={24} className="mr-2 text-indigo-600" /> Galería de Fotos
       </h2>
       <div className="columns-2 md:columns-3 lg:columns-4 gap-4 space-y-4">
@@ -543,6 +545,7 @@ export default function App() {
   const saveTimeoutRef = useRef(null);
   const notesRef = useRef([]);
   const projectsRef = useRef([]);
+  const backupInputRef = useRef(null);
 
   // Sincronizar refs con state (usando useLayoutEffect para que se ejecute antes del guardado)
   React.useLayoutEffect(() => {
@@ -574,6 +577,7 @@ export default function App() {
                 id: Number(n.id),
                 blocks,
                 pinned: n.pinned || false,
+                tags: Array.isArray(n.tags) ? n.tags : [],
                 updatedAt: n.updated_at || n.updatedAt || new Date().toISOString(),
               };
             });
@@ -656,11 +660,12 @@ export default function App() {
 
         // Preparar datos de notas asegurando que los IDs sean números
         const updates = currentNotes.map(n => ({
-          id: Number(n.id), // Asegurar que sea número
+          id: Number(n.id),
           title: n.title || 'Nueva Nota',
           category: n.category || 'General',
           blocks: n.blocks || [],
-          pinned: Boolean(n.pinned), // Asegurar que sea booleano
+          pinned: Boolean(n.pinned),
+          tags: Array.isArray(n.tags) ? n.tags : [],
           updated_at: n.updatedAt || new Date().toISOString()
         }));
         
@@ -776,9 +781,12 @@ export default function App() {
   const [newProjectName, setNewProjectName] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('Todas');
   const [selectedTags, setSelectedTags] = useState([]);
+  const [selectedNoteTags, setSelectedNoteTags] = useState([]);
   const [editingProjectTags, setEditingProjectTags] = useState(null);
   const [newTagInput, setNewTagInput] = useState('');
+  const [newNoteTagInput, setNewNoteTagInput] = useState('');
   const [viewMode, setViewMode] = useState('notes');
+  const { theme, toggleTheme } = useTheme();
 
   const activeNote = notes.find(n => n.id === activeNoteId);
   const getProjectColor = (projName) => { const proj = projects.find(p => p.name === projName); return proj ? proj.color : 'gray'; };
@@ -795,14 +803,43 @@ export default function App() {
     return Array.from(tagSet).sort();
   }, [projects]);
 
+  const allNoteTags = useMemo(() => {
+    const tagSet = new Set();
+    notes.forEach(n => {
+      if (n.tags && Array.isArray(n.tags)) {
+        n.tags.forEach(tag => tagSet.add(tag));
+      }
+    });
+    return Array.from(tagSet).sort();
+  }, [notes]);
+
   const filteredNotes = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    const searchInNote = (n) => {
+      if (!q) return true;
+      if (n.title?.toLowerCase().includes(q)) return true;
+      const tags = n.tags || [];
+      if (tags.some(t => t.toLowerCase().includes(q))) return true;
+      const blocks = n.blocks || [];
+      for (const b of blocks) {
+        if (b.content && String(b.content).toLowerCase().includes(q)) return true;
+        if (b.left && String(b.left).toLowerCase().includes(q)) return true;
+        if (b.right && String(b.right).toLowerCase().includes(q)) return true;
+        if (Array.isArray(b.items)) {
+          if (b.items.some(it => String(it.text || '').toLowerCase().includes(q))) return true;
+        }
+      }
+      return false;
+    };
     const filtered = notes.filter(n => {
-      const matchesSearch = n.title?.toLowerCase().includes(searchQuery.toLowerCase());
+      const matchesSearch = searchInNote(n);
       const matchesCategory = selectedCategory === 'Todas' || n.category === selectedCategory;
       const noteProject = projects.find(p => p.name === n.category);
       const noteTags = noteProject?.tags || [];
       const matchesTags = selectedTags.length === 0 || selectedTags.some(tag => noteTags.includes(tag));
-      return matchesSearch && matchesCategory && matchesTags;
+      const noteTagsList = n.tags || [];
+      const matchesNoteTags = selectedNoteTags.length === 0 || selectedNoteTags.every(tag => noteTagsList.includes(tag));
+      return matchesSearch && matchesCategory && matchesTags && matchesNoteTags;
     });
     // Ordenar: primero las fijadas, luego por fecha de actualización
     return filtered.sort((a, b) => {
@@ -811,11 +848,11 @@ export default function App() {
       if (aPinned !== bPinned) return bPinned - aPinned;
       return new Date(b.updatedAt || 0) - new Date(a.updatedAt || 0);
     });
-  }, [notes, searchQuery, selectedCategory, selectedTags, projects]);
+  }, [notes, searchQuery, selectedCategory, selectedTags, selectedNoteTags, projects]);
 
   // Handlers
   const createNote = () => {
-    const newNote = { id: Date.now(), title: 'Nueva Nota', category: selectedCategory === 'Todas' ? 'General' : selectedCategory, updatedAt: new Date().toISOString(), blocks: [{ type: 'text', content: '' }], pinned: false };
+    const newNote = { id: Date.now(), title: 'Nueva Nota', category: selectedCategory === 'Todas' ? 'General' : selectedCategory, updatedAt: new Date().toISOString(), blocks: [{ type: 'text', content: '' }], pinned: false, tags: [] };
     setNotes([newNote, ...notes]); setActiveNoteId(newNote.id); setViewMode('notes'); if (window.innerWidth < 768) setIsSidebarOpen(false);
   };
   
@@ -880,6 +917,39 @@ export default function App() {
         : [...prev, tag]
     );
   };
+  const toggleNoteTagFilter = (tag) => {
+    setSelectedNoteTags(prev => 
+      prev.includes(tag) 
+        ? prev.filter(t => t !== tag)
+        : [...prev, tag]
+    );
+  };
+  const addTagToNote = useCallback((noteId, tag) => {
+    if (!tag?.trim()) return;
+    const trimmed = tag.trim().toLowerCase();
+    setNotes(prev => {
+      const updated = prev.map(n => {
+        if (n.id !== noteId) return n;
+        const tags = n.tags || [];
+        if (tags.includes(trimmed)) return n;
+        return { ...n, tags: [...tags, trimmed], updatedAt: new Date().toISOString() };
+      });
+      notesRef.current = updated;
+      return updated;
+    });
+    setNewNoteTagInput('');
+  }, []);
+  const removeTagFromNote = useCallback((noteId, tagToRemove) => {
+    setNotes(prev => {
+      const updated = prev.map(n => 
+        n.id === noteId 
+          ? { ...n, tags: (n.tags || []).filter(t => t !== tagToRemove), updatedAt: new Date().toISOString() } 
+          : n
+      );
+      notesRef.current = updated;
+      return updated;
+    });
+  }, []);
   const cycleProjectColor = (e, projName) => { 
     e.stopPropagation(); 
     setProjects(prev => prev.map(p => { 
@@ -978,29 +1048,111 @@ export default function App() {
     });
   }, [activeNoteId]);
 
+  const downloadBackup = useCallback(() => {
+    const backup = {
+      version: 1,
+      exportedAt: new Date().toISOString(),
+      notes: notesRef.current,
+      projects: projectsRef.current,
+    };
+    const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `alenotes-backup-${new Date().toISOString().slice(0, 10)}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }, []);
+
+  const restoreBackup = useCallback((e) => {
+    const file = e.target?.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const data = JSON.parse(reader.result);
+        const notesList = Array.isArray(data.notes) ? data.notes : [];
+        const projectsList = Array.isArray(data.projects) ? data.projects : [];
+        if (notesList.length === 0 && projectsList.length === 0) {
+          alert('El archivo no contiene notas ni proyectos válidos.');
+          return;
+        }
+        if (!window.confirm(`Se restaurarán ${notesList.length} notas y ${projectsList.length} proyectos. Esto reemplazará los datos actuales. ¿Continuar?`)) return;
+        setNotes(notesList);
+        setProjects(projectsList);
+        notesRef.current = notesList;
+        projectsRef.current = projectsList;
+        setActiveNoteId(notesList[0]?.id ?? null);
+        setViewMode('notes');
+      } catch (err) {
+        alert('Error al leer el archivo. Asegurate de que sea un backup de Ale Notes.');
+      }
+      e.target.value = '';
+    };
+    reader.readAsText(file);
+  }, []);
+
+  const exportNoteToMarkdown = useCallback(() => {
+    if (!activeNote) return;
+    const lines = [`# ${activeNote.title || 'Sin título'}\n`, `*${activeNote.category}* — ${new Date(activeNote.updatedAt).toLocaleDateString('es-AR')}\n`];
+    (activeNote.blocks || []).forEach((block) => {
+      if (block.type === 'text' && block.content) lines.push(block.content.trim() + '\n');
+      if (block.type === 'checklist' && block.items?.length) {
+        block.items.forEach((item) => lines.push(`${item.checked ? '- [x]' : '- [ ]'} ${item.text || ''}\n`));
+      }
+      if (block.type === 'columns') {
+        if (block.left) lines.push(block.left.trim() + '\n');
+        if (block.right) lines.push(block.right.trim() + '\n');
+      }
+      if (block.type === 'image' && block.src) lines.push(`![${block.caption || 'imagen'}](${block.src})\n`);
+    });
+    const md = lines.join('\n');
+    const blob = new Blob([md], { type: 'text/markdown;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${(activeNote.title || 'nota').replace(/[^a-z0-9áéíóúñ\s]/gi, '_')}.md`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }, [activeNote]);
+
   return (
-    <div className="flex h-screen bg-gray-100 text-gray-800 font-sans overflow-hidden">
+    <div className="flex h-screen bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-100 font-sans overflow-hidden">
       {/* Indicador de estado de guardado */}
       <div className="fixed top-4 right-4 z-50 pointer-events-none">
-         {saveStatus === 'saving' && <div className="bg-white/90 backdrop-blur shadow-sm px-3 py-1.5 rounded-full text-xs font-medium text-indigo-600 flex items-center border border-indigo-100 animate-pulse"><Loader2 size={12} className="animate-spin mr-2"/> Guardando...</div>}
-         {saveStatus === 'error' && <div className="bg-red-100 px-3 py-1.5 rounded-full text-xs font-medium text-red-600 border border-red-200 animate-pulse">⚠️ Error al guardar</div>}
-         {saveStatus === 'saved' && !isLoading && <div className="bg-green-100 px-3 py-1.5 rounded-full text-xs font-medium text-green-600 border border-green-200 opacity-100 transition-opacity duration-300">✓ Guardado</div>}
+         {saveStatus === 'saving' && <div className="bg-white/90 dark:bg-gray-800/90 backdrop-blur shadow-sm px-3 py-1.5 rounded-full text-xs font-medium text-indigo-600 dark:text-indigo-400 flex items-center border border-indigo-100 dark:border-indigo-900 animate-pulse"><Loader2 size={12} className="animate-spin mr-2"/> Guardando...</div>}
+         {saveStatus === 'error' && <div className="bg-red-100 dark:bg-red-900/30 px-3 py-1.5 rounded-full text-xs font-medium text-red-600 dark:text-red-400 border border-red-200 dark:border-red-800 animate-pulse">⚠️ Error al guardar</div>}
+         {saveStatus === 'saved' && !isLoading && <div className="bg-green-100 dark:bg-green-900/30 px-3 py-1.5 rounded-full text-xs font-medium text-green-600 dark:text-green-400 border border-green-200 dark:border-green-800 opacity-100 transition-opacity duration-300">✓ Guardado</div>}
       </div>
 
       {isSidebarOpen && <div className="fixed inset-0 bg-black/20 z-20 md:hidden" onClick={() => setIsSidebarOpen(false)} />}
-      <aside className={`fixed inset-y-0 left-0 z-30 w-72 bg-white border-r border-gray-200 transform transition-transform duration-300 ease-in-out flex flex-col ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'} md:relative md:translate-x-0`}>
-        <div className="p-5 border-b border-gray-100 flex items-center justify-between"><div className="flex items-center space-x-2 text-indigo-600"><Layout className="w-6 h-6" /><h1 className="font-bold text-xl tracking-tight">Ale Notes</h1></div><button onClick={() => setIsSidebarOpen(false)} className="md:hidden text-gray-400"><X size={20} /></button></div>
+      <aside className={`fixed inset-y-0 left-0 z-30 w-72 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 transform transition-transform duration-300 ease-in-out flex flex-col ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'} md:relative md:translate-x-0`}>
+        <div className="p-5 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between">
+          <div className="flex items-center space-x-2 text-indigo-600 dark:text-indigo-400"><Layout className="w-6 h-6" /><h1 className="font-bold text-xl tracking-tight">Ale Notes</h1></div>
+          <div className="flex items-center gap-1">
+            <button type="button" onClick={toggleTheme} className="p-2 rounded-lg text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700 dark:text-gray-400" title={theme === 'dark' ? 'Modo claro' : 'Modo oscuro'}>{theme === 'dark' ? <Sun size={20} /> : <Moon size={20} />}</button>
+            <button onClick={() => setIsSidebarOpen(false)} className="md:hidden p-2 text-gray-400 dark:text-gray-500"><X size={20} /></button>
+          </div>
+        </div>
         <div className="p-4"><Button onClick={createNote} icon={Plus} className="w-full shadow-indigo-200">Nueva Nota</Button></div>
         <div className="px-4 py-2 space-y-1">
           <div className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2 px-2">Biblioteca</div>
-          <button onClick={() => { setViewMode('gallery'); if(window.innerWidth < 768) setIsSidebarOpen(false); }} className={`w-full flex items-center space-x-3 px-3 py-2 rounded-lg transition-colors text-sm font-medium ${viewMode === 'gallery' ? 'bg-indigo-50 text-indigo-700' : 'text-gray-600 hover:bg-gray-50'}`}><Grid size={18} className={viewMode === 'gallery' ? 'text-indigo-500' : 'text-gray-400'} /><span>Galería Global</span></button>
-          <button onClick={() => { setSelectedCategory('Todas'); setViewMode('notes'); }} className={`w-full flex items-center space-x-3 px-3 py-2 rounded-lg transition-colors text-sm font-medium ${viewMode === 'notes' && selectedCategory === 'Todas' ? 'bg-indigo-50 text-indigo-700' : 'text-gray-600 hover:bg-gray-50'}`}><Layers size={18} className={viewMode === 'notes' && selectedCategory === 'Todas' ? 'text-indigo-500' : 'text-gray-400'} /><span>Todas las notas</span></button>
-          <Link to="/dinero" className="w-full flex items-center space-x-3 px-3 py-2 rounded-lg transition-colors text-sm font-medium text-gray-600 hover:bg-gray-50 hover:text-indigo-600 group"><DollarSign size={18} className="text-gray-400 group-hover:text-indigo-500" /><span>Billetera</span></Link>
-          <Link to="/salud" className="w-full flex items-center space-x-3 px-3 py-2 rounded-lg transition-colors text-sm font-medium text-gray-600 hover:bg-gray-50 hover:text-indigo-600 group"><Heart size={18} className="text-gray-400 group-hover:text-indigo-500" /><span>Salud</span></Link>
-          <Link to="/proyectos" className="w-full flex items-center space-x-3 px-3 py-2 rounded-lg transition-colors text-sm font-medium text-gray-600 hover:bg-gray-50 hover:text-indigo-600 group"><Folder size={18} className="text-gray-400 group-hover:text-indigo-500" /><span>Proyectos</span></Link>
-          <Link to="/mapa-mental" className="w-full flex items-center space-x-3 px-3 py-2 rounded-lg transition-colors text-sm font-medium text-gray-600 hover:bg-gray-50 hover:text-indigo-600 group"><Brain size={18} className="text-gray-400 group-hover:text-indigo-500" /><span>Mapa mental</span></Link>
-          <a href="https://ale.cosechacreativa.com.ar/" target="_blank" rel="noopener noreferrer" className="w-full flex items-center space-x-3 px-3 py-2 rounded-lg transition-colors text-sm font-medium text-gray-600 hover:bg-gray-50 hover:text-indigo-600 group"><LinkIcon size={18} className="text-gray-400 group-hover:text-indigo-500" /><span>Herramientas</span><ExternalLink size={12} className="opacity-0 group-hover:opacity-100 ml-auto" /></a>
-          <div className="flex items-center justify-between mt-6 mb-2 px-2"><div className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Proyectos</div><button onClick={() => setIsCreatingProject(true)} className="text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded p-1 transition-colors"><Plus size={14} /></button></div>
+          <button onClick={() => { setViewMode('gallery'); if(window.innerWidth < 768) setIsSidebarOpen(false); }} className={`w-full flex items-center space-x-3 px-3 py-2 rounded-lg transition-colors text-sm font-medium ${viewMode === 'gallery' ? 'bg-indigo-50 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300' : 'text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'}`}><Grid size={18} className={viewMode === 'gallery' ? 'text-indigo-500' : 'text-gray-400 dark:text-gray-500'} /><span>Galería Global</span></button>
+          <button onClick={() => { setSelectedCategory('Todas'); setViewMode('notes'); }} className={`w-full flex items-center space-x-3 px-3 py-2 rounded-lg transition-colors text-sm font-medium ${viewMode === 'notes' && selectedCategory === 'Todas' ? 'bg-indigo-50 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300' : 'text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'}`}><Layers size={18} className={viewMode === 'notes' && selectedCategory === 'Todas' ? 'text-indigo-500' : 'text-gray-400 dark:text-gray-500'} /><span>Todas las notas</span></button>
+          <Link to="/dinero" className="w-full flex items-center space-x-3 px-3 py-2 rounded-lg transition-colors text-sm font-medium text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 hover:text-indigo-600 dark:hover:text-indigo-400 group"><DollarSign size={18} className="text-gray-400 dark:text-gray-500 group-hover:text-indigo-500" /><span>Billetera</span></Link>
+          <Link to="/salud" className="w-full flex items-center space-x-3 px-3 py-2 rounded-lg transition-colors text-sm font-medium text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 hover:text-indigo-600 dark:hover:text-indigo-400 group"><Heart size={18} className="text-gray-400 dark:text-gray-500 group-hover:text-indigo-500" /><span>Salud</span></Link>
+          <Link to="/proyectos" className="w-full flex items-center space-x-3 px-3 py-2 rounded-lg transition-colors text-sm font-medium text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 hover:text-indigo-600 dark:hover:text-indigo-400 group"><Folder size={18} className="text-gray-400 dark:text-gray-500 group-hover:text-indigo-500" /><span>Proyectos</span></Link>
+          <Link to="/mapa-mental" className="w-full flex items-center space-x-3 px-3 py-2 rounded-lg transition-colors text-sm font-medium text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 hover:text-indigo-600 dark:hover:text-indigo-400 group"><Brain size={18} className="text-gray-400 dark:text-gray-500 group-hover:text-indigo-500" /><span>Mapa mental</span></Link>
+          <a href="https://ale.cosechacreativa.com.ar/" target="_blank" rel="noopener noreferrer" className="w-full flex items-center space-x-3 px-3 py-2 rounded-lg transition-colors text-sm font-medium text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 hover:text-indigo-600 dark:hover:text-indigo-400 group"><LinkIcon size={18} className="text-gray-400 dark:text-gray-500 group-hover:text-indigo-500" /><span>Herramientas</span><ExternalLink size={12} className="opacity-0 group-hover:opacity-100 ml-auto" /></a>
+          <div className="px-2 pt-2 mt-2 border-t border-gray-100 dark:border-gray-700">
+            <div className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-2">Backup</div>
+            <div className="flex flex-col gap-1">
+              <button type="button" onClick={downloadBackup} className="w-full flex items-center space-x-3 px-3 py-2 rounded-lg transition-colors text-sm font-medium text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700" title="Descargar copia de notas y proyectos"><Database size={18} className="text-gray-400 dark:text-gray-500" /><span>Descargar backup</span></button>
+              <button type="button" onClick={() => backupInputRef.current?.click()} className="w-full flex items-center space-x-3 px-3 py-2 rounded-lg transition-colors text-sm font-medium text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700" title="Restaurar desde archivo JSON"><Upload size={18} className="text-gray-400 dark:text-gray-500" /><span>Restaurar backup</span></button>
+              <input ref={backupInputRef} type="file" accept=".json,application/json" className="hidden" onChange={restoreBackup} />
+            </div>
+          </div>
+          <div className="flex items-center justify-between mt-6 mb-2 px-2"><div className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider">Proyectos</div><button onClick={() => setIsCreatingProject(true)} className="text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded p-1 transition-colors"><Plus size={14} /></button></div>
           {isCreatingProject && (<div className="px-2 mb-2"><div className="flex items-center gap-2 bg-gray-50 p-1 rounded-lg border border-indigo-200"><input autoFocus type="text" placeholder="Nombre..." value={newProjectName} onChange={(e) => setNewProjectName(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') addProject(); if (e.key === 'Escape') setIsCreatingProject(false); }} className="w-full bg-transparent text-sm px-2 focus:outline-none" /><button onClick={addProject} className="text-indigo-600 hover:bg-indigo-100 rounded p-1"><CheckSquare size={14} /></button></div></div>)}
           <div className="max-h-48 overflow-y-auto space-y-1">{projects.map(proj => { 
             const theme = COLOR_PALETTE[proj.color] || COLOR_PALETTE.gray; 
@@ -1040,16 +1192,33 @@ export default function App() {
             );
           })}</div>
           {allTags.length > 0 && (
-            <div className="px-4 pt-4 pb-2 border-t border-gray-100 mt-4">
-              <div className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Filtrar por etiquetas</div>
+            <div className="px-4 pt-4 pb-2 border-t border-gray-100 dark:border-gray-700 mt-4">
+              <div className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-2">Etiquetas de proyectos</div>
               <div className="flex flex-wrap gap-1">
                 {allTags.map(tag => (
-                  <button key={tag} onClick={() => toggleTagFilter(tag)} className={`px-2 py-1 text-xs rounded-full transition-colors ${selectedTags.includes(tag) ? 'bg-indigo-100 text-indigo-700 border border-indigo-300' : 'bg-gray-100 text-gray-600 border border-gray-200 hover:bg-gray-200'}`}>
+                  <button key={tag} onClick={() => toggleTagFilter(tag)} className={`px-2 py-1 text-xs rounded-full transition-colors ${selectedTags.includes(tag) ? 'bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300 border border-indigo-300 dark:border-indigo-700' : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 border border-gray-200 dark:border-gray-600 hover:bg-gray-200 dark:hover:bg-gray-600'}`}>
                     {tag}
                   </button>
                 ))}
                 {selectedTags.length > 0 && (
-                  <button onClick={() => setSelectedTags([])} className="px-2 py-1 text-xs rounded-full bg-red-100 text-red-600 border border-red-200 hover:bg-red-200">
+                  <button onClick={() => setSelectedTags([])} className="px-2 py-1 text-xs rounded-full bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 border border-red-200 dark:border-red-800 hover:bg-red-200 dark:hover:bg-red-900/50">
+                    Limpiar
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
+          {allNoteTags.length > 0 && (
+            <div className="px-4 pt-4 pb-2 border-t border-gray-100 dark:border-gray-700 mt-2">
+              <div className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-2">Etiquetas en notas</div>
+              <div className="flex flex-wrap gap-1">
+                {allNoteTags.map(tag => (
+                  <button key={tag} onClick={() => toggleNoteTagFilter(tag)} className={`px-2 py-1 text-xs rounded-full transition-colors ${selectedNoteTags.includes(tag) ? 'bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-700' : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 border border-gray-200 dark:border-gray-600 hover:bg-gray-200 dark:hover:bg-gray-600'}`}>
+                    {tag}
+                  </button>
+                ))}
+                {selectedNoteTags.length > 0 && (
+                  <button onClick={() => setSelectedNoteTags([])} className="px-2 py-1 text-xs rounded-full bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 border border-red-200 dark:border-red-800">
                     Limpiar
                   </button>
                 )}
@@ -1057,10 +1226,10 @@ export default function App() {
             </div>
           )}
         </div>
-        {viewMode === 'notes' && (<><div className="px-4 pt-4 pb-2 border-t border-gray-100 mt-2"><div className="relative"><Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={16} /><input type="text" placeholder="Buscar..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="w-full pl-9 pr-4 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-100 focus:border-indigo-300 transition-all" /></div></div><div className="flex-1 overflow-y-auto px-2 space-y-1 py-2">{filteredNotes.length === 0 ? (<div className="text-center py-10 text-gray-400 text-sm">{searchQuery ? 'Sin resultados' : 'Vacío'}</div>) : (filteredNotes.map(note => (<div key={note.id} onClick={() => { setActiveNoteId(note.id); if(window.innerWidth < 768) setIsSidebarOpen(false); }} className={`group flex items-center justify-between p-3 rounded-lg cursor-pointer transition-all duration-200 border ${note.pinned ? 'border-yellow-200 bg-yellow-50/50' : 'border-transparent'} ${activeNoteId === note.id ? 'bg-indigo-50 border-indigo-100' : 'hover:bg-gray-50'}`}><div className="overflow-hidden flex-1 mr-2 flex items-start gap-2"><button onClick={(e) => togglePinNote(e, note.id)} className={`mt-0.5 flex-shrink-0 ${note.pinned ? 'text-yellow-500' : 'text-gray-300 hover:text-yellow-500'} transition-colors`}><Pin size={14} className={note.pinned ? '' : 'opacity-50'} /></button><div className="flex-1 min-w-0"><h3 className={`font-medium truncate flex items-center gap-2 ${activeNoteId === note.id ? 'text-indigo-900' : 'text-gray-700'}`}>{note.title || 'Sin título'}</h3><div className="flex items-center gap-2 mt-1"><NoteBadge colorKey={getProjectColor(note.category)}>{note.category}</NoteBadge><p className="text-xs text-gray-400 truncate">{new Date(note.updatedAt).toLocaleDateString()}</p></div></div></div><button onClick={(e) => deleteNote(e, note.id)} className={`p-1.5 rounded-md text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors ${activeNoteId === note.id ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}><Trash2 size={14} /></button></div>)))}</div></>)}
+        {viewMode === 'notes' && (<><div className="px-4 pt-4 pb-2 border-t border-gray-100 mt-2"><div className="relative"><Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 dark:text-gray-500" size={16} /><input type="text" placeholder="Buscar en título, etiquetas y contenido..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="w-full pl-9 pr-4 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg text-sm text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-indigo-100 dark:focus:ring-indigo-900 focus:border-indigo-300 dark:focus:border-indigo-700 transition-all" /></div></div><div className="flex-1 overflow-y-auto px-2 space-y-1 py-2">{filteredNotes.length === 0 ? (<div className="text-center py-10 text-gray-400 dark:text-gray-500 text-sm">{searchQuery ? 'Sin resultados' : 'Vacío'}</div>) : (filteredNotes.map(note => (<div key={note.id} onClick={() => { setActiveNoteId(note.id); if(window.innerWidth < 768) setIsSidebarOpen(false); }} className={`group flex items-center justify-between p-3 rounded-lg cursor-pointer transition-all duration-200 border ${note.pinned ? 'border-yellow-200 bg-yellow-50/50' : 'border-transparent'} ${activeNoteId === note.id ? 'bg-indigo-50 border-indigo-100' : 'hover:bg-gray-50'}`}><div className="overflow-hidden flex-1 mr-2 flex items-start gap-2"><button onClick={(e) => togglePinNote(e, note.id)} className={`mt-0.5 flex-shrink-0 ${note.pinned ? 'text-yellow-500' : 'text-gray-300 hover:text-yellow-500'} transition-colors`}><Pin size={14} className={note.pinned ? '' : 'opacity-50'} /></button><div className="flex-1 min-w-0"><h3 className={`font-medium truncate flex items-center gap-2 ${activeNoteId === note.id ? 'text-indigo-900' : 'text-gray-700'}`}>{note.title || 'Sin título'}</h3><div className="flex items-center gap-2 mt-1"><NoteBadge colorKey={getProjectColor(note.category)}>{note.category}</NoteBadge><p className="text-xs text-gray-400 truncate">{new Date(note.updatedAt).toLocaleDateString()}</p></div></div></div><button onClick={(e) => deleteNote(e, note.id)} className={`p-1.5 rounded-md text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors ${activeNoteId === note.id ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}><Trash2 size={14} /></button></div>)))}</div></>)}
       </aside>
-      <main className="flex-1 flex flex-col h-full w-full bg-white md:bg-gray-50/50 relative overflow-hidden">
-        <header className="md:hidden h-14 bg-white border-b border-gray-200 flex items-center px-4 justify-between sticky top-0 z-10 flex-shrink-0"><button onClick={() => setIsSidebarOpen(true)} className="text-gray-600"><Menu size={24} /></button><span className="font-semibold text-gray-700 truncate max-w-[200px]">{viewMode === 'gallery' ? 'Galería Global' : activeNote?.title}</span><div className="w-6"></div></header>
+      <main className="flex-1 flex flex-col h-full w-full bg-white dark:bg-gray-900 md:bg-gray-50/50 dark:md:bg-gray-900/50 relative overflow-hidden">
+        <header className="md:hidden h-14 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 flex items-center px-4 justify-between sticky top-0 z-10 flex-shrink-0"><button onClick={() => setIsSidebarOpen(true)} className="text-gray-600 dark:text-gray-300"><Menu size={24} /></button><span className="font-semibold text-gray-700 dark:text-gray-200 truncate max-w-[200px]">{viewMode === 'gallery' ? 'Galería Global' : activeNote?.title}</span><div className="w-6"></div></header>
         {viewMode === 'gallery' ? (
           <GlobalGallery
             notes={notes}
@@ -1070,8 +1239,22 @@ export default function App() {
               if (window.innerWidth < 768) setIsSidebarOpen(false);
             }}
           />
-        ) : activeNote ? (<div className="flex-1 overflow-y-auto"><div className="max-w-4xl mx-auto px-4 md:px-6 py-6 md:py-12 min-h-full bg-white shadow-sm md:my-6 md:rounded-xl border-gray-100 md:border pb-32"><div className="flex items-center gap-2 mb-4 overflow-hidden"><Tag size={14} className="text-gray-400 flex-shrink-0" /><div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">{projects.map(proj => (<Badge key={proj.name} colorKey={proj.color} active={activeNote.category === proj.name} onClick={() => updateNoteCategory(proj.name)}>{proj.name}</Badge>))}</div></div><input type="text" value={activeNote.title} onChange={(e) => updateNoteTitle(e.target.value)} placeholder="Título de la nota" className="w-full text-2xl md:text-4xl font-bold text-gray-900 placeholder-gray-300 border-none focus:outline-none bg-transparent mb-6 md:mb-8" /><div className="space-y-4">{activeNote.blocks.map((block, index) => (<div key={index} className="group relative pl-2 hover:pl-0 transition-all duration-200"><div className="absolute -left-8 top-2 opacity-0 group-hover:opacity-100 flex flex-col items-center space-y-1 transition-opacity z-10"><button onClick={() => deleteBlock(index)} className="p-1 text-gray-300 hover:text-red-500 transition-colors bg-white rounded-full shadow-sm border border-gray-100"><Trash2 size={14} /></button></div><div className="min-h-[2rem]">{block.type === 'text' && (<TextBlock content={block.content || ''} onChange={(val) => updateBlock(index, { content: val })} />)}{block.type === 'checklist' && (<div className="my-4 space-y-2">{block.items?.map((item, idx) => (<div key={item.id || idx} className="flex items-center gap-3 p-2 rounded-lg hover:bg-gray-50 group"><input type="checkbox" checked={item.checked || false} onChange={(e) => { const newItems = [...(block.items || [])]; newItems[idx] = { ...newItems[idx], checked: e.target.checked }; updateBlock(index, { items: newItems }); }} className="w-5 h-5 text-indigo-600 rounded focus:ring-indigo-500 border-gray-300" /><input type="text" value={item.text || ''} onChange={(e) => { const newItems = [...(block.items || [])]; newItems[idx] = { ...newItems[idx], text: e.target.value }; updateBlock(index, { items: newItems }); }} placeholder="Elemento de lista..." className={`flex-1 bg-transparent focus:outline-none text-base md:text-sm ${item.checked ? 'text-gray-400 line-through' : 'text-gray-700'}`} /><button onClick={() => { const newItems = block.items.filter((_, i) => i !== idx); updateBlock(index, { items: newItems.length > 0 ? newItems : [{ id: Date.now(), text: '', checked: false }] }); }} className="opacity-0 group-hover:opacity-100 text-gray-300 hover:text-red-500 transition-opacity"><X size={16} /></button></div>))}<button onClick={() => { const newItems = [...(block.items || []), { id: Date.now(), text: '', checked: false }]; updateBlock(index, { items: newItems }); }} className="mt-2 text-sm text-gray-500 hover:text-indigo-600 flex items-center gap-2"><Plus size={16} /> Añadir elemento</button></div>)}{block.type === 'columns' && (<ColumnsBlock leftContent={block.left} rightContent={block.right} onLeftChange={(val) => updateBlock(index, { left: val })} onRightChange={(val) => updateBlock(index, { right: val })} />)}{block.type === 'table' && (<TableBlock data={block.data} headers={block.headers} onChange={(data, headers) => updateBlock(index, { data, headers })} />)}{block.type === 'kanban' && (<KanbanBlock columns={block.columns} onChange={(columns) => updateBlock(index, { columns })} />)}{block.type === 'project' && (<ProjectPlanBlock tasks={block.tasks} onChange={(tasks) => updateBlock(index, { tasks })} />)}{block.type === 'special_list' && (<SpecialListBlock listType={block.listType} items={block.items} onChange={(items) => updateBlock(index, { items })} onTypeChange={(listType) => updateBlock(index, { listType })} />)}{block.type === 'image' && (<ImageBlock src={block.src} caption={block.caption} onChange={(data) => updateBlock(index, data)} />)}</div></div>))}</div><div className="h-32 cursor-text" onClick={() => { const lastBlock = activeNote.blocks[activeNote.blocks.length - 1]; if (!lastBlock || lastBlock.type !== 'text' || lastBlock.content !== '') { addBlock('text'); } }}></div></div></div>) : (<div className="flex-1 flex flex-col items-center justify-center text-gray-400 p-8"><FileText size={64} className="mb-4 text-gray-200" /><p className="text-lg font-medium text-gray-500">Selecciona o crea una nota</p><Button onClick={createNote} variant="primary" className="mt-6">Crear primera nota</Button></div>)}
-        {viewMode === 'notes' && activeNote && (<div className="fixed bottom-6 left-0 right-0 flex justify-center px-4 z-20 pointer-events-none"><div className="bg-white/95 backdrop-blur-md shadow-2xl border border-gray-200/50 rounded-full p-2 flex items-center space-x-1 sm:space-x-2 pointer-events-auto overflow-x-auto max-w-full scrollbar-hide"><button onClick={() => addBlock('text')} title="Texto" className="btn-icon flex-shrink-0 flex items-center space-x-2 px-3 py-3 rounded-full hover:bg-gray-100 text-gray-700 transition-colors"><Type size={20} className="text-indigo-500" /></button><div className="w-px h-6 bg-gray-200 flex-shrink-0"></div><button onClick={() => addBlock('checklist')} title="Checklist" className="btn-icon flex-shrink-0 flex items-center space-x-2 px-3 py-3 rounded-full hover:bg-gray-100 text-gray-700 transition-colors"><CheckSquare size={20} className="text-green-500" /></button><div className="w-px h-6 bg-gray-200 flex-shrink-0"></div><button onClick={() => addBlock('columns')} title="Columnas" className="btn-icon flex-shrink-0 flex items-center space-x-2 px-3 py-3 rounded-full hover:bg-gray-100 text-gray-700 transition-colors"><Columns size={20} className="text-emerald-500" /></button><div className="w-px h-6 bg-gray-200 flex-shrink-0"></div><button onClick={() => addBlock('table')} title="Tabla" className="btn-icon flex-shrink-0 flex items-center space-x-2 px-3 py-3 rounded-full hover:bg-gray-100 text-gray-700 transition-colors"><Table size={20} className="text-orange-500" /></button><div className="w-px h-6 bg-gray-200 flex-shrink-0"></div><button onClick={() => addBlock('kanban')} title="Tablero Kanban" className="btn-icon flex-shrink-0 flex items-center space-x-2 px-3 py-3 rounded-full hover:bg-gray-100 text-gray-700 transition-colors"><Trello size={20} className="text-blue-500" /></button><div className="w-px h-6 bg-gray-200 flex-shrink-0"></div><button onClick={() => addBlock('project')} title="Plan de Proyecto" className="btn-icon flex-shrink-0 flex items-center space-x-2 px-3 py-3 rounded-full hover:bg-gray-100 text-gray-700 transition-colors"><CheckSquare size={20} className="text-pink-500" /></button><div className="w-px h-6 bg-gray-200 flex-shrink-0"></div><button onClick={() => addBlock('special_list')} title="Checklist Especial" className="btn-icon flex-shrink-0 flex items-center space-x-2 px-3 py-3 rounded-full hover:bg-gray-100 text-gray-700 transition-colors"><ListTodo size={20} className="text-teal-500" /></button><div className="w-px h-6 bg-gray-200 flex-shrink-0"></div><button onClick={() => addBlock('image')} title="Imagen" className="btn-icon flex-shrink-0 flex items-center space-x-2 px-3 py-3 rounded-full hover:bg-gray-100 text-gray-700 transition-colors"><ImageIcon size={20} className="text-purple-500" /></button></div></div>)}
+        ) : activeNote ? (<div className="flex-1 overflow-y-auto"><div className="max-w-4xl mx-auto px-4 md:px-6 py-6 md:py-12 min-h-full bg-white dark:bg-gray-800 shadow-sm md:my-6 md:rounded-xl border-gray-100 dark:border-gray-700 md:border pb-32"><div className="flex items-center gap-2 mb-4 overflow-hidden"><Tag size={14} className="text-gray-400 dark:text-gray-500 flex-shrink-0" /><div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">{projects.map(proj => (<Badge key={proj.name} colorKey={proj.color} active={activeNote.category === proj.name} onClick={() => updateNoteCategory(proj.name)}>{proj.name}</Badge>))}</div><button type="button" onClick={exportNoteToMarkdown} className="ml-auto flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 border border-indigo-200 dark:border-indigo-800 shrink-0" title="Descargar nota en Markdown"><Download size={16} /> .md</button></div>
+            <div className="flex flex-wrap items-center gap-2 mb-4">
+              <span className="text-xs text-gray-500 dark:text-gray-400">Etiquetas:</span>
+              {(activeNote.tags || []).map(tag => (
+                <span key={tag} className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-emerald-100 dark:bg-emerald-900/40 text-emerald-800 dark:text-emerald-200 text-xs border border-emerald-200 dark:border-emerald-700">
+                  {tag}
+                  <button type="button" onClick={() => removeTagFromNote(activeNote.id, tag)} className="hover:text-red-600 dark:hover:text-red-400" aria-label="Quitar etiqueta"><X size={12} /></button>
+                </span>
+              ))}
+              <div className="flex gap-1">
+                <input type="text" value={newNoteTagInput} onChange={(e) => setNewNoteTagInput(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), addTagToNote(activeNote.id, newNoteTagInput))} placeholder="Añadir etiqueta..." className="w-32 px-2 py-1 text-sm rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-1 focus:ring-indigo-300 dark:focus:ring-indigo-700" />
+                <button type="button" onClick={() => addTagToNote(activeNote.id, newNoteTagInput)} className="px-2 py-1 rounded-lg text-xs font-medium bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-200 dark:hover:bg-emerald-900/60 border border-emerald-200 dark:border-emerald-700"><Plus size={14} /></button>
+              </div>
+            </div>
+            <input type="text" value={activeNote.title} onChange={(e) => updateNoteTitle(e.target.value)} placeholder="Título de la nota" className="w-full text-2xl md:text-4xl font-bold text-gray-900 dark:text-gray-100 placeholder-gray-300 dark:placeholder-gray-500 border-none focus:outline-none bg-transparent mb-6 md:mb-8" /><div className="space-y-4">{activeNote.blocks.map((block, index) => (<div key={index} className="group relative pl-2 hover:pl-0 transition-all duration-200"><div className="absolute -left-8 top-2 opacity-0 group-hover:opacity-100 flex flex-col items-center space-y-1 transition-opacity z-10"><button onClick={() => deleteBlock(index)} className="p-1 text-gray-300 hover:text-red-500 transition-colors bg-white rounded-full shadow-sm border border-gray-100"><Trash2 size={14} /></button></div><div className="min-h-[2rem]">{block.type === 'text' && (<TextBlock content={block.content || ''} onChange={(val) => updateBlock(index, { content: val })} />)}{block.type === 'checklist' && (<div className="my-4 space-y-2">{block.items?.map((item, idx) => (<div key={item.id || idx} className="flex items-center gap-3 p-2 rounded-lg hover:bg-gray-50 group"><input type="checkbox" checked={item.checked || false} onChange={(e) => { const newItems = [...(block.items || [])]; newItems[idx] = { ...newItems[idx], checked: e.target.checked }; updateBlock(index, { items: newItems }); }} className="w-5 h-5 text-indigo-600 rounded focus:ring-indigo-500 border-gray-300" /><input type="text" value={item.text || ''} onChange={(e) => { const newItems = [...(block.items || [])]; newItems[idx] = { ...newItems[idx], text: e.target.value }; updateBlock(index, { items: newItems }); }} placeholder="Elemento de lista..." className={`flex-1 bg-transparent focus:outline-none text-base md:text-sm ${item.checked ? 'text-gray-400 line-through' : 'text-gray-700'}`} /><button onClick={() => { const newItems = block.items.filter((_, i) => i !== idx); updateBlock(index, { items: newItems.length > 0 ? newItems : [{ id: Date.now(), text: '', checked: false }] }); }} className="opacity-0 group-hover:opacity-100 text-gray-300 hover:text-red-500 transition-opacity"><X size={16} /></button></div>))}<button onClick={() => { const newItems = [...(block.items || []), { id: Date.now(), text: '', checked: false }]; updateBlock(index, { items: newItems }); }} className="mt-2 text-sm text-gray-500 hover:text-indigo-600 flex items-center gap-2"><Plus size={16} /> Añadir elemento</button></div>)}{block.type === 'columns' && (<ColumnsBlock leftContent={block.left} rightContent={block.right} onLeftChange={(val) => updateBlock(index, { left: val })} onRightChange={(val) => updateBlock(index, { right: val })} />)}{block.type === 'table' && (<TableBlock data={block.data} headers={block.headers} onChange={(data, headers) => updateBlock(index, { data, headers })} />)}{block.type === 'kanban' && (<KanbanBlock columns={block.columns} onChange={(columns) => updateBlock(index, { columns })} />)}{block.type === 'project' && (<ProjectPlanBlock tasks={block.tasks} onChange={(tasks) => updateBlock(index, { tasks })} />)}{block.type === 'special_list' && (<SpecialListBlock listType={block.listType} items={block.items} onChange={(items) => updateBlock(index, { items })} onTypeChange={(listType) => updateBlock(index, { listType })} />)}{block.type === 'image' && (<ImageBlock src={block.src} caption={block.caption} onChange={(data) => updateBlock(index, data)} />)}</div></div>))}</div><div className="h-32 cursor-text" onClick={() => { const lastBlock = activeNote.blocks[activeNote.blocks.length - 1]; if (!lastBlock || lastBlock.type !== 'text' || lastBlock.content !== '') { addBlock('text'); } }}></div></div></div>) : (<div className="flex-1 flex flex-col items-center justify-center text-gray-400 dark:text-gray-500 p-8"><FileText size={64} className="mb-4 text-gray-200 dark:text-gray-600" /><p className="text-lg font-medium text-gray-500 dark:text-gray-400">Selecciona o crea una nota</p><Button onClick={createNote} variant="primary" className="mt-6">Crear primera nota</Button></div>)}
+        {viewMode === 'notes' && activeNote && (<div className="fixed bottom-6 left-0 right-0 flex justify-center px-4 z-20 pointer-events-none"><div className="bg-white/95 dark:bg-gray-800/95 backdrop-blur-md shadow-2xl border border-gray-200/50 dark:border-gray-600/50 rounded-full p-2 flex items-center space-x-1 sm:space-x-2 pointer-events-auto overflow-x-auto max-w-full scrollbar-hide"><button onClick={() => addBlock('text')} title="Texto" className="btn-icon flex-shrink-0 flex items-center space-x-2 px-3 py-3 rounded-full hover:bg-gray-100 text-gray-700 transition-colors"><Type size={20} className="text-indigo-500" /></button><div className="w-px h-6 bg-gray-200 flex-shrink-0"></div><button onClick={() => addBlock('checklist')} title="Checklist" className="btn-icon flex-shrink-0 flex items-center space-x-2 px-3 py-3 rounded-full hover:bg-gray-100 text-gray-700 transition-colors"><CheckSquare size={20} className="text-green-500" /></button><div className="w-px h-6 bg-gray-200 flex-shrink-0"></div><button onClick={() => addBlock('columns')} title="Columnas" className="btn-icon flex-shrink-0 flex items-center space-x-2 px-3 py-3 rounded-full hover:bg-gray-100 text-gray-700 transition-colors"><Columns size={20} className="text-emerald-500" /></button><div className="w-px h-6 bg-gray-200 flex-shrink-0"></div><button onClick={() => addBlock('table')} title="Tabla" className="btn-icon flex-shrink-0 flex items-center space-x-2 px-3 py-3 rounded-full hover:bg-gray-100 text-gray-700 transition-colors"><Table size={20} className="text-orange-500" /></button><div className="w-px h-6 bg-gray-200 flex-shrink-0"></div><button onClick={() => addBlock('kanban')} title="Tablero Kanban" className="btn-icon flex-shrink-0 flex items-center space-x-2 px-3 py-3 rounded-full hover:bg-gray-100 text-gray-700 transition-colors"><Trello size={20} className="text-blue-500" /></button><div className="w-px h-6 bg-gray-200 flex-shrink-0"></div><button onClick={() => addBlock('project')} title="Plan de Proyecto" className="btn-icon flex-shrink-0 flex items-center space-x-2 px-3 py-3 rounded-full hover:bg-gray-100 text-gray-700 transition-colors"><CheckSquare size={20} className="text-pink-500" /></button><div className="w-px h-6 bg-gray-200 flex-shrink-0"></div><button onClick={() => addBlock('special_list')} title="Checklist Especial" className="btn-icon flex-shrink-0 flex items-center space-x-2 px-3 py-3 rounded-full hover:bg-gray-100 text-gray-700 transition-colors"><ListTodo size={20} className="text-teal-500" /></button><div className="w-px h-6 bg-gray-200 flex-shrink-0"></div><button onClick={() => addBlock('image')} title="Imagen" className="btn-icon flex-shrink-0 flex items-center space-x-2 px-3 py-3 rounded-full hover:bg-gray-100 text-gray-700 transition-colors"><ImageIcon size={20} className="text-purple-500" /></button></div></div>)}
       </main>
     </div>
   );

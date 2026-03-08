@@ -34,6 +34,7 @@ const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
 const supabase = supabaseUrl && supabaseKey ? createClient(supabaseUrl, supabaseKey) : null;
 
 const COLORS = { actual: '#059669', aCobrar: '#d97706', total: '#4f46e5' };
+const CATEGORIAS = ['Efectivo', 'Banco', 'Inversión', 'Otro'];
 
 function formatMoney(num) {
   return new Intl.NumberFormat('es-AR', {
@@ -43,7 +44,7 @@ function formatMoney(num) {
   }).format(num);
 }
 
-function EntradaLista({ items, onAdd, onUpdate, onDelete, emptyMessage, addLabel, withDate = false }) {
+function EntradaLista({ items, onAdd, onUpdate, onDelete, emptyMessage, addLabel, withDate = false, withCategory = false }) {
   return (
     <div className="space-y-2">
       {items.length === 0 ? (
@@ -54,6 +55,18 @@ function EntradaLista({ items, onAdd, onUpdate, onDelete, emptyMessage, addLabel
             key={item.id}
             className="flex flex-wrap items-center gap-2 p-3 rounded-xl bg-white/80 hover:bg-white border border-gray-100 transition-all"
           >
+            {withCategory && (
+              <select
+                value={item.categoria || ''}
+                onChange={(e) => onUpdate(item.id, 'categoria', e.target.value)}
+                className="px-2 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-200 w-28"
+              >
+                <option value="">Categoría</option>
+                {CATEGORIAS.map((c) => (
+                  <option key={c} value={c}>{c}</option>
+                ))}
+              </select>
+            )}
             <input
               type="text"
               placeholder="Concepto"
@@ -109,6 +122,8 @@ function EntradaLista({ items, onAdd, onUpdate, onDelete, emptyMessage, addLabel
 export default function ContadorDinero() {
   const [dineroActual, setDineroActual] = useState([]);
   const [aCobrar, setACobrar] = useState([]);
+  const [metaAhorro, setMetaAhorro] = useState(null);
+  const cantidadesRef = useRef({});
   const [isLoading, setIsLoading] = useState(!!supabase);
   const [saveStatus, setSaveStatus] = useState('saved');
   const [saveError, setSaveError] = useState(null);
@@ -123,6 +138,8 @@ export default function ContadorDinero() {
     [aCobrar]
   );
   const totalProyectado = totalActual + totalACobrar;
+  const metaNum = metaAhorro != null && metaAhorro !== '' ? Number(metaAhorro) : null;
+  const progresoMeta = metaNum != null && metaNum > 0 ? Math.min(100, (totalActual / metaNum) * 100) : null;
 
   const chartPieData = useMemo(() => {
     if (totalActual === 0 && totalACobrar === 0) return [{ name: 'Sin datos', value: 1, fill: '#e5e7eb' }];
@@ -150,6 +167,11 @@ export default function ContadorDinero() {
             .eq('id', BILLETERA_ID)
             .maybeSingle();
           if (!error && data) {
+            if (data.cantidades && typeof data.cantidades === 'object') {
+              cantidadesRef.current = data.cantidades;
+              const meta = data.cantidades.meta;
+              setMetaAhorro(meta != null && meta !== '' ? (typeof meta === 'number' ? meta : Number(meta)) : null);
+            }
             if (Array.isArray(data.dinero_actual) && data.dinero_actual.length > 0) {
               setDineroActual(data.dinero_actual.map((it) => ({ ...it, id: it.id ?? Date.now() + Math.random() })));
             }
@@ -181,6 +203,7 @@ export default function ContadorDinero() {
           const data = JSON.parse(raw);
           if (Array.isArray(data.dineroActual)) setDineroActual(data.dineroActual);
           if (Array.isArray(data.aCobrar)) setACobrar(data.aCobrar);
+          if (data.metaAhorro != null) setMetaAhorro(data.metaAhorro);
         }
       } catch (_) {}
       setIsLoading(false);
@@ -192,9 +215,11 @@ export default function ContadorDinero() {
       setSaveStatus('saving');
       setSaveError(null);
       try {
+        const cantidades = { ...cantidadesRef.current, meta: metaAhorro };
         const { error } = await supabase.from('billetera').upsert(
           {
             id: BILLETERA_ID,
+            cantidades,
             dinero_actual: dineroActualData,
             a_cobrar: aCobrarData,
             updated_at: new Date().toISOString(),
@@ -209,15 +234,15 @@ export default function ContadorDinero() {
         setSaveStatus('error');
         setSaveError(msg);
         try {
-          localStorage.setItem(STORAGE_KEY, JSON.stringify({ dineroActual: dineroActualData, aCobrar: aCobrarData }));
+          localStorage.setItem(STORAGE_KEY, JSON.stringify({ dineroActual: dineroActualData, aCobrar: aCobrarData, metaAhorro }));
         } catch (_) {}
       }
     } else {
       try {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify({ dineroActual: dineroActualData, aCobrar: aCobrarData }));
+        localStorage.setItem(STORAGE_KEY, JSON.stringify({ dineroActual: dineroActualData, aCobrar: aCobrarData, metaAhorro }));
       } catch (_) {}
     }
-  }, []);
+  }, [metaAhorro]);
 
   useEffect(() => {
     if (isLoading) return;
@@ -226,8 +251,8 @@ export default function ContadorDinero() {
     return () => { if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current); };
   }, [dineroActual, aCobrar, isLoading, saveToBackend]);
 
-  const addEntrada = (setter) => {
-    setter((prev) => [...prev, { id: Date.now(), concepto: '', monto: '', fecha: '' }]);
+  const addEntrada = (setter, withCat = false) => {
+    setter((prev) => [...prev, { id: Date.now(), concepto: '', monto: '', fecha: '', ...(withCat ? { categoria: '' } : {}) }]);
   };
   const updateEntrada = (setter, id, field, value) => {
     setter((prev) => prev.map((it) => (it.id === id ? { ...it, [field]: value } : it)));
@@ -313,6 +338,38 @@ export default function ContadorDinero() {
           </div>
         </div>
 
+        {/* Meta de ahorro */}
+        <section className="rounded-2xl bg-white/90 backdrop-blur border border-gray-200/60 shadow-lg shadow-gray-100 p-5 mb-6">
+          <div className="flex flex-wrap items-center gap-4">
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-semibold text-gray-700">Meta de ahorro:</span>
+              <div className="flex items-center gap-1">
+                <span className="text-gray-500 text-sm">$</span>
+                <input
+                  type="number"
+                  placeholder="Ej. 100000"
+                  min={0}
+                  value={metaAhorro ?? ''}
+                  onChange={(e) => setMetaAhorro(e.target.value === '' ? null : e.target.value)}
+                  className="w-28 px-3 py-2 rounded-lg border border-gray-200 text-sm font-medium tabular-nums [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                />
+              </div>
+            </div>
+            {metaNum != null && metaNum > 0 && (
+              <div className="flex-1 min-w-[120px]">
+                <div className="flex justify-between text-xs text-gray-500 mb-1">
+                  <span>${formatMoney(totalActual)} / ${formatMoney(metaNum)}</span>
+                  <span>{progresoMeta != null ? Math.round(progresoMeta) : 0}%</span>
+                </div>
+                <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
+                  <div className="h-full bg-gradient-to-r from-emerald-500 to-emerald-600 rounded-full transition-all duration-300" style={{ width: `${progresoMeta ?? 0}%` }} />
+                </div>
+                {totalActual >= metaNum && <p className="text-xs text-emerald-600 font-medium mt-1">¡Meta alcanzada!</p>}
+              </div>
+            )}
+          </div>
+        </section>
+
         {/* Gráficos */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
           <div className="rounded-2xl bg-white/90 backdrop-blur border border-gray-200/60 shadow-lg shadow-gray-100 p-5">
@@ -375,12 +432,13 @@ export default function ContadorDinero() {
           <div className="p-4">
             <EntradaLista
               items={dineroActual}
-              onAdd={() => addEntrada(setDineroActual)}
+              onAdd={() => addEntrada(setDineroActual, true)}
               onUpdate={(id, field, value) => updateEntrada(setDineroActual, id, field, value)}
               onDelete={(id) => deleteEntrada(setDineroActual, id)}
               emptyMessage="No hay entradas. Agregá billetes o montos que tenés en mano."
               addLabel="Agregar billete / monto"
               withDate={true}
+              withCategory={true}
             />
           </div>
         </section>
