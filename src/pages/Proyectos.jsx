@@ -73,22 +73,57 @@ export default function Proyectos() {
   const saveTimeoutRef = useRef(null);
 
   useEffect(() => {
+    let cancelled = false;
     if (supabase) {
+      const timeoutId = setTimeout(() => {
+        if (cancelled) return;
+        try {
+          const raw = localStorage.getItem(STORAGE_KEY);
+          const parsed = raw ? JSON.parse(raw) : [];
+          setProjects(parsed.map((p) => ({ ...p, tags: p.tags || [], stages: normalizeStages(p.stages) })));
+        } catch (_) {}
+        setIsLoading(false);
+      }, 10000);
       (async () => {
         try {
           const { data, error } = await supabase.from('projects').select('*');
-          if (!error && data) {
+          if (cancelled) return;
+          if (!error && Array.isArray(data)) {
             setProjects(
               data.map((p) => ({
                 ...p,
+                name: p.name || '',
+                color: p.color || 'gray',
                 tags: p.tags || [],
                 stages: normalizeStages(p.stages),
               }))
             );
+          } else if (error) {
+            try {
+              const raw = localStorage.getItem(STORAGE_KEY);
+              const parsed = raw ? JSON.parse(raw) : [];
+              setProjects(parsed.map((p) => ({ ...p, tags: p.tags || [], stages: normalizeStages(p.stages) })));
+            } catch (_) {}
           }
-        } catch (_) {}
-        setIsLoading(false);
+        } catch (_) {
+          if (!cancelled) {
+            try {
+              const raw = localStorage.getItem(STORAGE_KEY);
+              const parsed = raw ? JSON.parse(raw) : [];
+              setProjects(parsed.map((p) => ({ ...p, tags: p.tags || [], stages: normalizeStages(p.stages) })));
+            } catch (_) {}
+          }
+        } finally {
+          if (!cancelled) {
+            clearTimeout(timeoutId);
+            setIsLoading(false);
+          }
+        }
       })();
+      return () => {
+        cancelled = true;
+        clearTimeout(timeoutId);
+      };
     } else {
       try {
         const raw = localStorage.getItem(STORAGE_KEY);
