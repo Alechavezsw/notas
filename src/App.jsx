@@ -776,7 +776,7 @@ export default function App() {
 
 
   const [activeNoteId, setActiveNoteId] = useState(null);
-  useEffect(() => { if (notes.length > 0 && !activeNoteId) setActiveNoteId(notes[0].id); }, [notes, activeNoteId]);
+  // No auto-seleccionar nota: al entrar se ven todas en grid para fácil acceso
 
   const [searchQuery, setSearchQuery] = useState('');
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
@@ -1141,7 +1141,7 @@ export default function App() {
         <div className="px-4 py-2 space-y-1">
           <div className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2 px-2">Biblioteca</div>
           <button onClick={() => { setViewMode('gallery'); if(window.innerWidth < 768) setIsSidebarOpen(false); }} className={`w-full flex items-center space-x-3 px-3 py-2 rounded-lg transition-colors text-sm font-medium ${viewMode === 'gallery' ? 'bg-indigo-50 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300' : 'text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'}`}><Grid size={18} className={viewMode === 'gallery' ? 'text-indigo-500' : 'text-gray-400 dark:text-gray-500'} /><span>Galería Global</span></button>
-          <button onClick={() => { setSelectedCategory('Todas'); setViewMode('notes'); }} className={`w-full flex items-center space-x-3 px-3 py-2 rounded-lg transition-colors text-sm font-medium ${viewMode === 'notes' && selectedCategory === 'Todas' ? 'bg-indigo-50 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300' : 'text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'}`}><Layers size={18} className={viewMode === 'notes' && selectedCategory === 'Todas' ? 'text-indigo-500' : 'text-gray-400 dark:text-gray-500'} /><span>Todas las notas</span></button>
+          <button onClick={() => { setSelectedCategory('Todas'); setViewMode('notes'); setActiveNoteId(null); if (window.innerWidth < 768) setIsSidebarOpen(false); }} className={`w-full flex items-center space-x-3 px-3 py-2 rounded-lg transition-colors text-sm font-medium ${viewMode === 'notes' && selectedCategory === 'Todas' ? 'bg-indigo-50 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300' : 'text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'}`}><Layers size={18} className={viewMode === 'notes' && selectedCategory === 'Todas' ? 'text-indigo-500' : 'text-gray-400 dark:text-gray-500'} /><span>Todas las notas</span></button>
           <Link to="/dinero" className="w-full flex items-center space-x-3 px-3 py-2 rounded-lg transition-colors text-sm font-medium text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 hover:text-indigo-600 dark:hover:text-indigo-400 group"><DollarSign size={18} className="text-gray-400 dark:text-gray-500 group-hover:text-indigo-500" /><span>Billetera</span></Link>
           <Link to="/salud" className="w-full flex items-center space-x-3 px-3 py-2 rounded-lg transition-colors text-sm font-medium text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 hover:text-indigo-600 dark:hover:text-indigo-400 group"><Heart size={18} className="text-gray-400 dark:text-gray-500 group-hover:text-indigo-500" /><span>Salud</span></Link>
           <Link to="/proyectos" className="w-full flex items-center space-x-3 px-3 py-2 rounded-lg transition-colors text-sm font-medium text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 hover:text-indigo-600 dark:hover:text-indigo-400 group"><Folder size={18} className="text-gray-400 dark:text-gray-500 group-hover:text-indigo-500" /><span>Proyectos</span></Link>
@@ -1163,7 +1163,7 @@ export default function App() {
             const projTags = proj.tags || [];
             return (
               <div key={proj.name} className="group">
-                <button onClick={() => { setSelectedCategory(proj.name); setViewMode('notes'); }} className={`w-full flex items-center space-x-3 px-3 py-2 rounded-lg transition-colors text-sm font-medium ${viewMode === 'notes' && selectedCategory === proj.name ? 'bg-indigo-50 text-indigo-700' : 'text-gray-600 hover:bg-gray-50'}`}>
+                <button onClick={() => { setSelectedCategory(proj.name); setViewMode('notes'); setActiveNoteId(null); }} className={`w-full flex items-center space-x-3 px-3 py-2 rounded-lg transition-colors text-sm font-medium ${viewMode === 'notes' && selectedCategory === proj.name ? 'bg-indigo-50 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300' : 'text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'}`}>
                   <div onClick={(e) => { e.stopPropagation(); cycleProjectColor(e, proj.name); }} className={`w-3 h-3 rounded-full flex-shrink-0 cursor-pointer hover:scale-125 transition-transform ${theme.dot}`}></div>
                   <span className="truncate flex-1 text-left">{proj.name}</span>
                   <button onClick={(e) => { e.stopPropagation(); setEditingProjectTags(editingProjectTags === proj.name ? null : proj.name); }} className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-indigo-600 p-1 transition-opacity"><Tag size={14} /></button>
@@ -1275,7 +1275,7 @@ export default function App() {
         )}
       </aside>
       <main className="flex-1 flex flex-col h-full w-full bg-white dark:bg-gray-900 md:bg-gray-50/50 dark:md:bg-gray-900/50 relative overflow-hidden">
-        <header className="md:hidden h-14 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 flex items-center px-4 justify-between sticky top-0 z-10 flex-shrink-0"><button onClick={() => setIsSidebarOpen(true)} className="text-gray-600 dark:text-gray-300"><Menu size={24} /></button><span className="font-semibold text-gray-700 dark:text-gray-200 truncate max-w-[200px]">{viewMode === 'gallery' ? 'Galería Global' : activeNote?.title}</span><div className="w-6"></div></header>
+        <header className="md:hidden h-14 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 flex items-center px-4 justify-between sticky top-0 z-10 flex-shrink-0"><button onClick={() => setIsSidebarOpen(true)} className="text-gray-600 dark:text-gray-300"><Menu size={24} /></button><span className="font-semibold text-gray-700 dark:text-gray-200 truncate max-w-[200px]">{viewMode === 'gallery' ? 'Galería Global' : (activeNote ? activeNote.title : 'Todas las notas')}</span><div className="w-6"></div></header>
         {viewMode === 'gallery' ? (
           <GlobalGallery
             notes={notes}
@@ -1285,9 +1285,61 @@ export default function App() {
               if (window.innerWidth < 768) setIsSidebarOpen(false);
             }}
           />
+        ) : viewMode === 'notes' && !activeNote ? (
+          <div className="flex-1 overflow-y-auto">
+            <div className="max-w-5xl mx-auto px-4 md:px-6 py-6 md:py-8">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
+                <h2 className="text-xl md:text-2xl font-bold text-gray-800 dark:text-white">Todas las notas</h2>
+                <Button onClick={createNote} icon={Plus} variant="primary" className="shadow-md">Nueva nota</Button>
+              </div>
+              {filteredNotes.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-16 text-gray-400 dark:text-gray-500">
+                  <div className="w-20 h-20 rounded-2xl bg-gray-100 dark:bg-gray-800 flex items-center justify-center mb-5">
+                    <FileText size={40} className="text-gray-300 dark:text-gray-600" />
+                  </div>
+                  <p className="text-lg font-medium text-gray-500 dark:text-gray-400 mb-1">Ninguna nota aún</p>
+                  <p className="text-sm mb-6">Crea una para empezar</p>
+                  <Button onClick={createNote} variant="primary">Crear primera nota</Button>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                  {filteredNotes.map(note => {
+                    const excerptBlock = note.blocks?.find(b => b.type === 'text');
+                    const excerptRaw = (excerptBlock?.content || '').replace(/<[^>]*>/g, '').trim();
+                    const excerpt = excerptRaw ? (excerptRaw.length > 80 ? excerptRaw.slice(0, 80) + '…' : excerptRaw) : null;
+                    const theme = COLOR_PALETTE[getProjectColor(note.category)] || COLOR_PALETTE.gray;
+                    return (
+                      <div
+                        key={note.id}
+                        onClick={() => { setActiveNoteId(note.id); if (window.innerWidth < 768) setIsSidebarOpen(false); }}
+                        className="group rounded-2xl border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 shadow-sm hover:shadow-lg hover:border-indigo-200 dark:hover:border-indigo-700 transition-all duration-200 cursor-pointer overflow-hidden flex flex-col"
+                      >
+                        <div className={`h-1.5 ${theme.dot}`} />
+                        <div className="p-4 flex-1 flex flex-col min-h-0">
+                          <div className="flex items-start justify-between gap-2 mb-2">
+                            <h3 className="font-semibold text-gray-900 dark:text-white line-clamp-2 flex-1">{note.title || 'Sin título'}</h3>
+                            {note.pinned && <Pin size={14} className="text-amber-500 flex-shrink-0" />}
+                          </div>
+                          {excerpt && <p className="text-sm text-gray-500 dark:text-gray-400 line-clamp-3 leading-snug mb-3 flex-1">{excerpt}</p>}
+                          <div className="flex items-center gap-2 flex-wrap mt-auto pt-2 border-t border-gray-100 dark:border-gray-700">
+                            <NoteBadge colorKey={getProjectColor(note.category)}>{note.category}</NoteBadge>
+                            <span className="text-xs text-gray-400 dark:text-gray-500">{new Date(note.updatedAt).toLocaleDateString('es-AR', { day: 'numeric', month: 'short' })}</span>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
         ) : activeNote ? (
           <div className="flex-1 overflow-y-auto">
             <div className="max-w-3xl mx-auto px-4 md:px-8 py-6 md:py-10 min-h-full bg-white dark:bg-gray-800 shadow-sm md:my-6 md:rounded-2xl border border-gray-100 dark:border-gray-700 md:border pb-36">
+              <button type="button" onClick={() => setActiveNoteId(null)} className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400 mb-4 transition-colors">
+                <ChevronLeft size={18} />
+                Todas las notas
+              </button>
               {/* Barra: categoría + export */}
               <div className="flex items-center gap-3 pb-4 mb-4 border-b border-gray-100 dark:border-gray-700">
                 <Tag size={16} className="text-gray-400 dark:text-gray-500 flex-shrink-0" />
