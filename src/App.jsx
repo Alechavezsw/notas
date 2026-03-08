@@ -963,28 +963,22 @@ export default function App() {
       return p; 
     })); 
   };
-  const deleteNote = async (e, id) => { 
-    e.stopPropagation(); 
+  const deleteNote = async (e, id, skipConfirm = false) => { 
+    e?.stopPropagation?.(); 
     const noteToDelete = notes.find(n => n.id === id);
     if (!noteToDelete) return;
-    
-    // Eliminar inmediatamente de la UI
+    if (!skipConfirm && !confirm('¿Eliminar esta nota?')) return;
+
     const newNotes = notes.filter(n => n.id !== id); 
     setNotes(newNotes); 
-    
-    // Si era la nota activa, cambiar a otra
-    if (activeNoteId === id) {
-      setActiveNoteId(newNotes[0]?.id || null);
-    }
-    
-    // Si estamos usando Supabase, marcar para eliminación
+    if (activeNoteId === id) setActiveNoteId(newNotes[0]?.id || null);
+
     if (supabase) {
       setDeletedNoteIds(prev => [...prev, id]);
-      // Eliminar inmediatamente de Supabase
       try {
         await supabase.from('notes').delete().eq('id', id);
-      } catch (error) {
-        console.error('Error deleting note:', error);
+      } catch (err) {
+        console.error('Error deleting note:', err);
       }
     }
   };
@@ -1312,9 +1306,10 @@ export default function App() {
                       <div
                         key={note.id}
                         onClick={() => { setActiveNoteId(note.id); if (window.innerWidth < 768) setIsSidebarOpen(false); }}
-                        className="group rounded-2xl border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 shadow-sm hover:shadow-lg hover:border-indigo-200 dark:hover:border-indigo-700 transition-all duration-200 cursor-pointer overflow-hidden flex flex-col"
+                        className="group/card rounded-2xl border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 shadow-sm hover:shadow-lg hover:border-indigo-200 dark:hover:border-indigo-700 transition-all duration-200 cursor-pointer overflow-hidden flex flex-col relative"
                       >
                         <div className={`h-1.5 ${theme.dot}`} />
+                        <button type="button" onClick={(e) => deleteNote(e, note.id)} className="absolute top-2 right-2 z-10 p-2 rounded-lg text-gray-400 dark:text-gray-500 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30 opacity-0 group-hover/card:opacity-100 transition-all" aria-label="Eliminar nota"><Trash2 size={16} /></button>
                         <div className="p-4 flex-1 flex flex-col min-h-0">
                           <div className="flex items-start justify-between gap-2 mb-2">
                             <h3 className="font-semibold text-gray-900 dark:text-white line-clamp-2 flex-1">{note.title || 'Sin título'}</h3>
@@ -1350,6 +1345,9 @@ export default function App() {
                 </div>
                 <button type="button" onClick={exportNoteToMarkdown} className="flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-medium text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 border border-indigo-200 dark:border-indigo-800 shrink-0 transition-colors" title="Descargar nota en Markdown">
                   <Download size={16} /> .md
+                </button>
+                <button type="button" onClick={(e) => deleteNote(e, activeNote.id)} className="flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-medium text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 border border-red-200 dark:border-red-800 shrink-0 transition-colors" title="Eliminar nota">
+                  <Trash2 size={16} /> Eliminar
                 </button>
               </div>
               {/* Etiquetas */}

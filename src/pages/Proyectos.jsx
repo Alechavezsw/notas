@@ -290,19 +290,6 @@ export default function Proyectos() {
     });
   };
 
-  if (isLoading) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-violet-50/80 via-white to-indigo-50/80 flex items-center justify-center">
-        <div className="flex flex-col items-center gap-4 text-gray-500">
-          <div className="w-14 h-14 rounded-2xl bg-indigo-100 flex items-center justify-center">
-            <Loader2 size={28} className="animate-spin text-indigo-600" />
-          </div>
-          <p className="text-sm font-medium">Cargando proyectos...</p>
-        </div>
-      </div>
-    );
-  }
-
   const current = selectedProject ? getProject(selectedProject) : null;
 
   const tasksByDate = React.useMemo(() => {
@@ -318,6 +305,19 @@ export default function Proyectos() {
     });
     return map;
   }, [current]);
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-violet-50/80 via-white to-indigo-50/80 flex items-center justify-center">
+        <div className="flex flex-col items-center gap-4 text-gray-500">
+          <div className="w-14 h-14 rounded-2xl bg-indigo-100 flex items-center justify-center">
+            <Loader2 size={28} className="animate-spin text-indigo-600" />
+          </div>
+          <p className="text-sm font-medium">Cargando proyectos...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-violet-50/80 via-white to-indigo-50/80">
