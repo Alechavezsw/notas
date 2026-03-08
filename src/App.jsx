@@ -148,51 +148,51 @@ const TextBlock = ({ content, onChange, placeholder = "Escribe algo aquí..." })
   return (
     <div className="group relative">
       {showFormatBar && (
-        <div className="absolute -top-10 left-0 z-10 flex items-center gap-1 bg-white border border-gray-200 rounded-lg shadow-lg p-1">
+        <div className="absolute -top-10 left-0 z-10 flex items-center gap-0.5 bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg shadow-lg p-1">
           <button
             onClick={() => applyFormat('bold')}
-            className="p-2 hover:bg-gray-100 rounded transition-colors"
+            className="p-2 hover:bg-gray-100 dark:hover:bg-gray-600 rounded transition-colors"
             title="Negrita (Ctrl+B)"
           >
-            <Bold size={16} className="text-gray-700" />
+            <Bold size={16} className="text-gray-700 dark:text-gray-200" />
           </button>
           <button
             onClick={() => applyFormat('italic')}
             className="p-2 hover:bg-gray-100 rounded transition-colors"
             title="Cursiva (Ctrl+I)"
           >
-            <Italic size={16} className="text-gray-700" />
+            <Italic size={16} className="text-gray-700 dark:text-gray-200" />
           </button>
           <button
             onClick={() => applyFormat('underline')}
-            className="p-2 hover:bg-gray-100 rounded transition-colors"
+            className="p-2 hover:bg-gray-100 dark:hover:bg-gray-600 rounded transition-colors"
             title="Subrayado (Ctrl+U)"
           >
-            <Underline size={16} className="text-gray-700" />
+            <Underline size={16} className="text-gray-700 dark:text-gray-200" />
           </button>
           <button
             onClick={() => applyFormat('strikeThrough')}
-            className="p-2 hover:bg-gray-100 rounded transition-colors"
+            className="p-2 hover:bg-gray-100 dark:hover:bg-gray-600 rounded transition-colors"
             title="Tachado"
           >
-            <Strikethrough size={16} className="text-gray-700" />
+            <Strikethrough size={16} className="text-gray-700 dark:text-gray-200" />
           </button>
-          <div className="w-px h-6 bg-gray-200 mx-1"></div>
+          <div className="w-px h-6 bg-gray-200 dark:bg-gray-500 mx-1"></div>
           <button
             onClick={() => applyFormat('insertUnorderedList')}
-            className="p-2 hover:bg-gray-100 rounded transition-colors"
+            className="p-2 hover:bg-gray-100 dark:hover:bg-gray-600 rounded transition-colors"
             title="Lista con viñetas"
           >
-            <List size={16} className="text-gray-700" />
+            <List size={16} className="text-gray-700 dark:text-gray-200" />
           </button>
           <button
             onClick={() => applyFormat('insertOrderedList')}
-            className="p-2 hover:bg-gray-100 rounded transition-colors"
+            className="p-2 hover:bg-gray-100 dark:hover:bg-gray-600 rounded transition-colors"
             title="Lista numerada"
           >
-            <List size={16} className="text-gray-700 rotate-90" />
+            <List size={16} className="text-gray-700 dark:text-gray-200 rotate-90" />
           </button>
-          <div className="w-px h-6 bg-gray-200 mx-1"></div>
+          <div className="w-px h-6 bg-gray-200 dark:bg-gray-500 mx-1"></div>
           <button
             onClick={() => {
               const url = prompt('Ingresa la URL:');
@@ -200,10 +200,10 @@ const TextBlock = ({ content, onChange, placeholder = "Escribe algo aquí..." })
                 applyFormat('createLink', url);
               }
             }}
-            className="p-2 hover:bg-gray-100 rounded transition-colors"
+            className="p-2 hover:bg-gray-100 dark:hover:bg-gray-600 rounded transition-colors"
             title="Insertar enlace"
           >
-            <LinkIcon size={16} className="text-gray-700" />
+            <LinkIcon size={16} className="text-gray-700 dark:text-gray-200" />
           </button>
         </div>
       )}
@@ -217,7 +217,7 @@ const TextBlock = ({ content, onChange, placeholder = "Escribe algo aquí..." })
         onCompositionStart={handleCompositionStart}
         onCompositionEnd={handleCompositionEnd}
         suppressContentEditableWarning={true}
-        className="w-full bg-transparent resize-none focus:outline-none text-gray-700 leading-relaxed p-2 rounded hover:bg-gray-50 focus:bg-white transition-colors text-base md:text-sm min-h-[3rem]"
+        className="w-full bg-transparent resize-none focus:outline-none text-gray-700 dark:text-gray-200 leading-relaxed p-3 rounded-lg hover:bg-gray-50/80 dark:hover:bg-gray-700/30 focus:bg-gray-50/80 dark:focus:bg-gray-700/30 transition-colors text-[15px] md:text-base min-h-[3.5rem]"
         style={{ 
           minHeight: '3rem',
           direction: 'ltr',
@@ -230,6 +230,9 @@ const TextBlock = ({ content, onChange, placeholder = "Escribe algo aquí..." })
           content: attr(data-placeholder);
           color: #9ca3af;
           pointer-events: none;
+        }
+        .dark [contenteditable][data-placeholder]:empty:before {
+          color: #6b7280;
         }
         [contenteditable] {
           direction: ltr !important;
@@ -1142,6 +1145,7 @@ export default function App() {
           <Link to="/dinero" className="w-full flex items-center space-x-3 px-3 py-2 rounded-lg transition-colors text-sm font-medium text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 hover:text-indigo-600 dark:hover:text-indigo-400 group"><DollarSign size={18} className="text-gray-400 dark:text-gray-500 group-hover:text-indigo-500" /><span>Billetera</span></Link>
           <Link to="/salud" className="w-full flex items-center space-x-3 px-3 py-2 rounded-lg transition-colors text-sm font-medium text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 hover:text-indigo-600 dark:hover:text-indigo-400 group"><Heart size={18} className="text-gray-400 dark:text-gray-500 group-hover:text-indigo-500" /><span>Salud</span></Link>
           <Link to="/proyectos" className="w-full flex items-center space-x-3 px-3 py-2 rounded-lg transition-colors text-sm font-medium text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 hover:text-indigo-600 dark:hover:text-indigo-400 group"><Folder size={18} className="text-gray-400 dark:text-gray-500 group-hover:text-indigo-500" /><span>Proyectos</span></Link>
+          <Link to="/calendario" className="w-full flex items-center space-x-3 px-3 py-2 rounded-lg transition-colors text-sm font-medium text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 hover:text-indigo-600 dark:hover:text-indigo-400 group"><Calendar size={18} className="text-gray-400 dark:text-gray-500 group-hover:text-indigo-500" /><span>Calendario</span></Link>
           <Link to="/mapa-mental" className="w-full flex items-center space-x-3 px-3 py-2 rounded-lg transition-colors text-sm font-medium text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 hover:text-indigo-600 dark:hover:text-indigo-400 group"><Brain size={18} className="text-gray-400 dark:text-gray-500 group-hover:text-indigo-500" /><span>Mapa mental</span></Link>
           <a href="https://ale.cosechacreativa.com.ar/" target="_blank" rel="noopener noreferrer" className="w-full flex items-center space-x-3 px-3 py-2 rounded-lg transition-colors text-sm font-medium text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 hover:text-indigo-600 dark:hover:text-indigo-400 group"><LinkIcon size={18} className="text-gray-400 dark:text-gray-500 group-hover:text-indigo-500" /><span>Herramientas</span><ExternalLink size={12} className="opacity-0 group-hover:opacity-100 ml-auto" /></a>
           <div className="px-2 pt-2 mt-2 border-t border-gray-100 dark:border-gray-700">
@@ -1226,7 +1230,49 @@ export default function App() {
             </div>
           )}
         </div>
-        {viewMode === 'notes' && (<><div className="px-4 pt-4 pb-2 border-t border-gray-100 mt-2"><div className="relative"><Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 dark:text-gray-500" size={16} /><input type="text" placeholder="Buscar en título, etiquetas y contenido..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="w-full pl-9 pr-4 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg text-sm text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-indigo-100 dark:focus:ring-indigo-900 focus:border-indigo-300 dark:focus:border-indigo-700 transition-all" /></div></div><div className="flex-1 overflow-y-auto px-2 space-y-1 py-2">{filteredNotes.length === 0 ? (<div className="text-center py-10 text-gray-400 dark:text-gray-500 text-sm">{searchQuery ? 'Sin resultados' : 'Vacío'}</div>) : (filteredNotes.map(note => (<div key={note.id} onClick={() => { setActiveNoteId(note.id); if(window.innerWidth < 768) setIsSidebarOpen(false); }} className={`group flex items-center justify-between p-3 rounded-lg cursor-pointer transition-all duration-200 border ${note.pinned ? 'border-yellow-200 bg-yellow-50/50' : 'border-transparent'} ${activeNoteId === note.id ? 'bg-indigo-50 border-indigo-100' : 'hover:bg-gray-50'}`}><div className="overflow-hidden flex-1 mr-2 flex items-start gap-2"><button onClick={(e) => togglePinNote(e, note.id)} className={`mt-0.5 flex-shrink-0 ${note.pinned ? 'text-yellow-500' : 'text-gray-300 hover:text-yellow-500'} transition-colors`}><Pin size={14} className={note.pinned ? '' : 'opacity-50'} /></button><div className="flex-1 min-w-0"><h3 className={`font-medium truncate flex items-center gap-2 ${activeNoteId === note.id ? 'text-indigo-900' : 'text-gray-700'}`}>{note.title || 'Sin título'}</h3><div className="flex items-center gap-2 mt-1"><NoteBadge colorKey={getProjectColor(note.category)}>{note.category}</NoteBadge><p className="text-xs text-gray-400 truncate">{new Date(note.updatedAt).toLocaleDateString()}</p></div></div></div><button onClick={(e) => deleteNote(e, note.id)} className={`p-1.5 rounded-md text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors ${activeNoteId === note.id ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}><Trash2 size={14} /></button></div>)))}</div></>)}
+        {viewMode === 'notes' && (
+          <>
+            <div className="px-4 pt-4 pb-2 border-t border-gray-100 dark:border-gray-700 mt-2">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 dark:text-gray-500" size={16} />
+                <input type="text" placeholder="Buscar en título, etiquetas y contenido..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="w-full pl-9 pr-4 py-2.5 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl text-sm text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-indigo-100 dark:focus:ring-indigo-900 focus:border-indigo-300 dark:focus:border-indigo-700 transition-all" />
+              </div>
+            </div>
+            <div className="flex-1 overflow-y-auto px-3 space-y-2 py-3">
+              {filteredNotes.length === 0 ? (
+                <div className="text-center py-12 text-gray-400 dark:text-gray-500 text-sm">{searchQuery ? 'Sin resultados' : 'Vacío'}</div>
+              ) : (
+                filteredNotes.map(note => {
+                  const excerptBlock = note.blocks?.find(b => b.type === 'text');
+                  const excerptRaw = (excerptBlock?.content || '').replace(/<[^>]*>/g, '').trim();
+                  const excerpt = excerptRaw ? (excerptRaw.length > 52 ? excerptRaw.slice(0, 52) + '…' : excerptRaw) : null;
+                  return (
+                    <div
+                      key={note.id}
+                      onClick={() => { setActiveNoteId(note.id); if (window.innerWidth < 768) setIsSidebarOpen(false); }}
+                      className={`group flex items-start justify-between gap-2 p-3.5 rounded-xl cursor-pointer transition-all duration-200 border ${note.pinned ? 'border-amber-200 dark:border-amber-700 bg-amber-50/60 dark:bg-amber-900/20' : 'border-gray-100 dark:border-gray-700'} ${activeNoteId === note.id ? 'bg-indigo-50 dark:bg-indigo-900/30 border-indigo-200 dark:border-indigo-800 shadow-sm' : 'hover:bg-gray-50 dark:hover:bg-gray-700/50 hover:border-gray-200 dark:hover:border-gray-600'}`}
+                    >
+                      <div className="overflow-hidden flex-1 min-w-0 flex items-start gap-2.5">
+                        <button onClick={(e) => togglePinNote(e, note.id)} className={`mt-0.5 flex-shrink-0 ${note.pinned ? 'text-amber-500 dark:text-amber-400' : 'text-gray-300 dark:text-gray-500 hover:text-amber-500'} transition-colors`} aria-label={note.pinned ? 'Desfijar' : 'Fijar'}>
+                          <Pin size={14} className={note.pinned ? '' : 'opacity-60'} />
+                        </button>
+                        <div className="flex-1 min-w-0">
+                          <h3 className={`font-semibold truncate text-[15px] ${activeNoteId === note.id ? 'text-indigo-900 dark:text-indigo-100' : 'text-gray-800 dark:text-gray-100'}`}>{note.title || 'Sin título'}</h3>
+                          {excerpt && <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5 line-clamp-2 leading-relaxed">{excerpt}</p>}
+                          <div className="flex items-center gap-2 mt-2 flex-wrap">
+                            <NoteBadge colorKey={getProjectColor(note.category)}>{note.category}</NoteBadge>
+                            <span className="text-[11px] text-gray-400 dark:text-gray-500">{new Date(note.updatedAt).toLocaleDateString('es-AR', { day: 'numeric', month: 'short' })}</span>
+                          </div>
+                        </div>
+                      </div>
+                      <button onClick={(e) => deleteNote(e, note.id)} className={`p-2 rounded-lg text-gray-400 dark:text-gray-500 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30 transition-colors flex-shrink-0 ${activeNoteId === note.id ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`} aria-label="Eliminar nota"><Trash2 size={14} /></button>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          </>
+        )}
       </aside>
       <main className="flex-1 flex flex-col h-full w-full bg-white dark:bg-gray-900 md:bg-gray-50/50 dark:md:bg-gray-900/50 relative overflow-hidden">
         <header className="md:hidden h-14 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 flex items-center px-4 justify-between sticky top-0 z-10 flex-shrink-0"><button onClick={() => setIsSidebarOpen(true)} className="text-gray-600 dark:text-gray-300"><Menu size={24} /></button><span className="font-semibold text-gray-700 dark:text-gray-200 truncate max-w-[200px]">{viewMode === 'gallery' ? 'Galería Global' : activeNote?.title}</span><div className="w-6"></div></header>
@@ -1239,22 +1285,101 @@ export default function App() {
               if (window.innerWidth < 768) setIsSidebarOpen(false);
             }}
           />
-        ) : activeNote ? (<div className="flex-1 overflow-y-auto"><div className="max-w-4xl mx-auto px-4 md:px-6 py-6 md:py-12 min-h-full bg-white dark:bg-gray-800 shadow-sm md:my-6 md:rounded-xl border-gray-100 dark:border-gray-700 md:border pb-32"><div className="flex items-center gap-2 mb-4 overflow-hidden"><Tag size={14} className="text-gray-400 dark:text-gray-500 flex-shrink-0" /><div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">{projects.map(proj => (<Badge key={proj.name} colorKey={proj.color} active={activeNote.category === proj.name} onClick={() => updateNoteCategory(proj.name)}>{proj.name}</Badge>))}</div><button type="button" onClick={exportNoteToMarkdown} className="ml-auto flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 border border-indigo-200 dark:border-indigo-800 shrink-0" title="Descargar nota en Markdown"><Download size={16} /> .md</button></div>
-            <div className="flex flex-wrap items-center gap-2 mb-4">
-              <span className="text-xs text-gray-500 dark:text-gray-400">Etiquetas:</span>
-              {(activeNote.tags || []).map(tag => (
-                <span key={tag} className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-emerald-100 dark:bg-emerald-900/40 text-emerald-800 dark:text-emerald-200 text-xs border border-emerald-200 dark:border-emerald-700">
-                  {tag}
-                  <button type="button" onClick={() => removeTagFromNote(activeNote.id, tag)} className="hover:text-red-600 dark:hover:text-red-400" aria-label="Quitar etiqueta"><X size={12} /></button>
-                </span>
-              ))}
-              <div className="flex gap-1">
-                <input type="text" value={newNoteTagInput} onChange={(e) => setNewNoteTagInput(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), addTagToNote(activeNote.id, newNoteTagInput))} placeholder="Añadir etiqueta..." className="w-32 px-2 py-1 text-sm rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-1 focus:ring-indigo-300 dark:focus:ring-indigo-700" />
-                <button type="button" onClick={() => addTagToNote(activeNote.id, newNoteTagInput)} className="px-2 py-1 rounded-lg text-xs font-medium bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-200 dark:hover:bg-emerald-900/60 border border-emerald-200 dark:border-emerald-700"><Plus size={14} /></button>
+        ) : activeNote ? (
+          <div className="flex-1 overflow-y-auto">
+            <div className="max-w-3xl mx-auto px-4 md:px-8 py-6 md:py-10 min-h-full bg-white dark:bg-gray-800 shadow-sm md:my-6 md:rounded-2xl border border-gray-100 dark:border-gray-700 md:border pb-36">
+              {/* Barra: categoría + export */}
+              <div className="flex items-center gap-3 pb-4 mb-4 border-b border-gray-100 dark:border-gray-700">
+                <Tag size={16} className="text-gray-400 dark:text-gray-500 flex-shrink-0" />
+                <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide flex-1 min-w-0">
+                  {projects.map(proj => (
+                    <Badge key={proj.name} colorKey={proj.color} active={activeNote.category === proj.name} onClick={() => updateNoteCategory(proj.name)}>{proj.name}</Badge>
+                  ))}
+                </div>
+                <button type="button" onClick={exportNoteToMarkdown} className="flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-medium text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 border border-indigo-200 dark:border-indigo-800 shrink-0 transition-colors" title="Descargar nota en Markdown">
+                  <Download size={16} /> .md
+                </button>
               </div>
+              {/* Etiquetas */}
+              <div className="flex flex-wrap items-center gap-2 mb-5">
+                <span className="text-xs font-medium text-gray-500 dark:text-gray-400">Etiquetas</span>
+                {(activeNote.tags || []).map(tag => (
+                  <span key={tag} className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-100 dark:bg-emerald-900/40 text-emerald-800 dark:text-emerald-200 text-xs border border-emerald-200 dark:border-emerald-700">
+                    {tag}
+                    <button type="button" onClick={() => removeTagFromNote(activeNote.id, tag)} className="hover:text-red-600 dark:hover:text-red-400 rounded-full p-0.5 transition-colors" aria-label="Quitar etiqueta"><X size={12} /></button>
+                  </span>
+                ))}
+                <div className="flex gap-2">
+                  <input type="text" value={newNoteTagInput} onChange={(e) => setNewNoteTagInput(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), addTagToNote(activeNote.id, newNoteTagInput))} placeholder="Añadir..." className="w-28 px-2.5 py-1.5 text-sm rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-indigo-200 dark:focus:ring-indigo-800" />
+                  <button type="button" onClick={() => addTagToNote(activeNote.id, newNoteTagInput)} className="px-2.5 py-1.5 rounded-lg text-xs font-medium bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-200 dark:hover:bg-emerald-900/60 border border-emerald-200 dark:border-emerald-700 transition-colors"><Plus size={14} /></button>
+                </div>
+              </div>
+              {/* Título */}
+              <input type="text" value={activeNote.title} onChange={(e) => updateNoteTitle(e.target.value)} placeholder="Título de la nota" className="w-full text-2xl md:text-4xl font-bold text-gray-900 dark:text-white placeholder-gray-300 dark:placeholder-gray-500 border-none focus:outline-none bg-transparent mb-8 tracking-tight leading-tight" />
+              {/* Bloques */}
+              <div className="space-y-6">
+                {activeNote.blocks.map((block, index) => (
+                  <div key={index} className="group/block relative pl-1 md:pl-4 border-l-2 border-transparent hover:border-gray-200 dark:hover:border-gray-600 rounded-r-lg py-1 transition-colors">
+                    <div className="absolute -left-2 md:left-0 top-2 opacity-0 group-hover/block:opacity-100 flex flex-col items-center transition-opacity z-10">
+                      <button onClick={() => deleteBlock(index)} className="p-2 text-gray-400 dark:text-gray-500 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30 transition-colors bg-white dark:bg-gray-700 rounded-full shadow border border-gray-200 dark:border-gray-600" aria-label="Eliminar bloque"><Trash2 size={14} /></button>
+                    </div>
+                    <div className="min-h-[2.5rem]">
+                      {block.type === 'text' && <TextBlock content={block.content || ''} onChange={(val) => updateBlock(index, { content: val })} />}
+                      {block.type === 'checklist' && (
+                        <div className="my-4 space-y-2">
+                          {block.items?.map((item, idx) => (
+                            <div key={item.id || idx} className="flex items-center gap-3 p-2.5 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors group/item">
+                              <input type="checkbox" checked={item.checked || false} onChange={(e) => { const newItems = [...(block.items || [])]; newItems[idx] = { ...newItems[idx], checked: e.target.checked }; updateBlock(index, { items: newItems }); }} className="w-5 h-5 text-indigo-600 rounded focus:ring-indigo-500 border-gray-300 dark:border-gray-600 flex-shrink-0" />
+                              <input type="text" value={item.text || ''} onChange={(e) => { const newItems = [...(block.items || [])]; newItems[idx] = { ...newItems[idx], text: e.target.value }; updateBlock(index, { items: newItems }); }} placeholder="Elemento de lista..." className={`flex-1 bg-transparent focus:outline-none text-[15px] ${item.checked ? 'text-gray-400 dark:text-gray-500 line-through' : 'text-gray-700 dark:text-gray-200'}`} />
+                              <button onClick={() => { const newItems = block.items.filter((_, i) => i !== idx); updateBlock(index, { items: newItems.length > 0 ? newItems : [{ id: Date.now(), text: '', checked: false }] }); }} className="opacity-0 group-hover/item:opacity-100 p-1.5 text-gray-400 hover:text-red-500 rounded-lg transition-all" aria-label="Quitar"><X size={16} /></button>
+                            </div>
+                          ))}
+                          <button onClick={() => { const newItems = [...(block.items || []), { id: Date.now(), text: '', checked: false }]; updateBlock(index, { items: newItems }); }} className="mt-2 text-sm text-gray-500 dark:text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400 flex items-center gap-2 transition-colors"><Plus size={16} /> Añadir elemento</button>
+                        </div>
+                      )}
+                      {block.type === 'columns' && <ColumnsBlock leftContent={block.left} rightContent={block.right} onLeftChange={(val) => updateBlock(index, { left: val })} onRightChange={(val) => updateBlock(index, { right: val })} />}
+                      {block.type === 'table' && <TableBlock data={block.data} headers={block.headers} onChange={(data, headers) => updateBlock(index, { data, headers })} />}
+                      {block.type === 'kanban' && <KanbanBlock columns={block.columns} onChange={(columns) => updateBlock(index, { columns })} />}
+                      {block.type === 'project' && <ProjectPlanBlock tasks={block.tasks} onChange={(tasks) => updateBlock(index, { tasks })} />}
+                      {block.type === 'special_list' && <SpecialListBlock listType={block.listType} items={block.items} onChange={(items) => updateBlock(index, { items })} onTypeChange={(listType) => updateBlock(index, { listType })} />}
+                      {block.type === 'image' && <ImageBlock src={block.src} caption={block.caption} onChange={(data) => updateBlock(index, data)} />}
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <div className="h-24 cursor-text" onClick={() => { const lastBlock = activeNote.blocks[activeNote.blocks.length - 1]; if (!lastBlock || lastBlock.type !== 'text' || lastBlock.content !== '') { addBlock('text'); } }} aria-hidden />
             </div>
-            <input type="text" value={activeNote.title} onChange={(e) => updateNoteTitle(e.target.value)} placeholder="Título de la nota" className="w-full text-2xl md:text-4xl font-bold text-gray-900 dark:text-gray-100 placeholder-gray-300 dark:placeholder-gray-500 border-none focus:outline-none bg-transparent mb-6 md:mb-8" /><div className="space-y-4">{activeNote.blocks.map((block, index) => (<div key={index} className="group relative pl-2 hover:pl-0 transition-all duration-200"><div className="absolute -left-8 top-2 opacity-0 group-hover:opacity-100 flex flex-col items-center space-y-1 transition-opacity z-10"><button onClick={() => deleteBlock(index)} className="p-1 text-gray-300 hover:text-red-500 transition-colors bg-white rounded-full shadow-sm border border-gray-100"><Trash2 size={14} /></button></div><div className="min-h-[2rem]">{block.type === 'text' && (<TextBlock content={block.content || ''} onChange={(val) => updateBlock(index, { content: val })} />)}{block.type === 'checklist' && (<div className="my-4 space-y-2">{block.items?.map((item, idx) => (<div key={item.id || idx} className="flex items-center gap-3 p-2 rounded-lg hover:bg-gray-50 group"><input type="checkbox" checked={item.checked || false} onChange={(e) => { const newItems = [...(block.items || [])]; newItems[idx] = { ...newItems[idx], checked: e.target.checked }; updateBlock(index, { items: newItems }); }} className="w-5 h-5 text-indigo-600 rounded focus:ring-indigo-500 border-gray-300" /><input type="text" value={item.text || ''} onChange={(e) => { const newItems = [...(block.items || [])]; newItems[idx] = { ...newItems[idx], text: e.target.value }; updateBlock(index, { items: newItems }); }} placeholder="Elemento de lista..." className={`flex-1 bg-transparent focus:outline-none text-base md:text-sm ${item.checked ? 'text-gray-400 line-through' : 'text-gray-700'}`} /><button onClick={() => { const newItems = block.items.filter((_, i) => i !== idx); updateBlock(index, { items: newItems.length > 0 ? newItems : [{ id: Date.now(), text: '', checked: false }] }); }} className="opacity-0 group-hover:opacity-100 text-gray-300 hover:text-red-500 transition-opacity"><X size={16} /></button></div>))}<button onClick={() => { const newItems = [...(block.items || []), { id: Date.now(), text: '', checked: false }]; updateBlock(index, { items: newItems }); }} className="mt-2 text-sm text-gray-500 hover:text-indigo-600 flex items-center gap-2"><Plus size={16} /> Añadir elemento</button></div>)}{block.type === 'columns' && (<ColumnsBlock leftContent={block.left} rightContent={block.right} onLeftChange={(val) => updateBlock(index, { left: val })} onRightChange={(val) => updateBlock(index, { right: val })} />)}{block.type === 'table' && (<TableBlock data={block.data} headers={block.headers} onChange={(data, headers) => updateBlock(index, { data, headers })} />)}{block.type === 'kanban' && (<KanbanBlock columns={block.columns} onChange={(columns) => updateBlock(index, { columns })} />)}{block.type === 'project' && (<ProjectPlanBlock tasks={block.tasks} onChange={(tasks) => updateBlock(index, { tasks })} />)}{block.type === 'special_list' && (<SpecialListBlock listType={block.listType} items={block.items} onChange={(items) => updateBlock(index, { items })} onTypeChange={(listType) => updateBlock(index, { listType })} />)}{block.type === 'image' && (<ImageBlock src={block.src} caption={block.caption} onChange={(data) => updateBlock(index, data)} />)}</div></div>))}</div><div className="h-32 cursor-text" onClick={() => { const lastBlock = activeNote.blocks[activeNote.blocks.length - 1]; if (!lastBlock || lastBlock.type !== 'text' || lastBlock.content !== '') { addBlock('text'); } }}></div></div></div>) : (<div className="flex-1 flex flex-col items-center justify-center text-gray-400 dark:text-gray-500 p-8"><FileText size={64} className="mb-4 text-gray-200 dark:text-gray-600" /><p className="text-lg font-medium text-gray-500 dark:text-gray-400">Selecciona o crea una nota</p><Button onClick={createNote} variant="primary" className="mt-6">Crear primera nota</Button></div>)}
-        {viewMode === 'notes' && activeNote && (<div className="fixed bottom-6 left-0 right-0 flex justify-center px-4 z-20 pointer-events-none"><div className="bg-white/95 dark:bg-gray-800/95 backdrop-blur-md shadow-2xl border border-gray-200/50 dark:border-gray-600/50 rounded-full p-2 flex items-center space-x-1 sm:space-x-2 pointer-events-auto overflow-x-auto max-w-full scrollbar-hide"><button onClick={() => addBlock('text')} title="Texto" className="btn-icon flex-shrink-0 flex items-center space-x-2 px-3 py-3 rounded-full hover:bg-gray-100 text-gray-700 transition-colors"><Type size={20} className="text-indigo-500" /></button><div className="w-px h-6 bg-gray-200 flex-shrink-0"></div><button onClick={() => addBlock('checklist')} title="Checklist" className="btn-icon flex-shrink-0 flex items-center space-x-2 px-3 py-3 rounded-full hover:bg-gray-100 text-gray-700 transition-colors"><CheckSquare size={20} className="text-green-500" /></button><div className="w-px h-6 bg-gray-200 flex-shrink-0"></div><button onClick={() => addBlock('columns')} title="Columnas" className="btn-icon flex-shrink-0 flex items-center space-x-2 px-3 py-3 rounded-full hover:bg-gray-100 text-gray-700 transition-colors"><Columns size={20} className="text-emerald-500" /></button><div className="w-px h-6 bg-gray-200 flex-shrink-0"></div><button onClick={() => addBlock('table')} title="Tabla" className="btn-icon flex-shrink-0 flex items-center space-x-2 px-3 py-3 rounded-full hover:bg-gray-100 text-gray-700 transition-colors"><Table size={20} className="text-orange-500" /></button><div className="w-px h-6 bg-gray-200 flex-shrink-0"></div><button onClick={() => addBlock('kanban')} title="Tablero Kanban" className="btn-icon flex-shrink-0 flex items-center space-x-2 px-3 py-3 rounded-full hover:bg-gray-100 text-gray-700 transition-colors"><Trello size={20} className="text-blue-500" /></button><div className="w-px h-6 bg-gray-200 flex-shrink-0"></div><button onClick={() => addBlock('project')} title="Plan de Proyecto" className="btn-icon flex-shrink-0 flex items-center space-x-2 px-3 py-3 rounded-full hover:bg-gray-100 text-gray-700 transition-colors"><CheckSquare size={20} className="text-pink-500" /></button><div className="w-px h-6 bg-gray-200 flex-shrink-0"></div><button onClick={() => addBlock('special_list')} title="Checklist Especial" className="btn-icon flex-shrink-0 flex items-center space-x-2 px-3 py-3 rounded-full hover:bg-gray-100 text-gray-700 transition-colors"><ListTodo size={20} className="text-teal-500" /></button><div className="w-px h-6 bg-gray-200 flex-shrink-0"></div><button onClick={() => addBlock('image')} title="Imagen" className="btn-icon flex-shrink-0 flex items-center space-x-2 px-3 py-3 rounded-full hover:bg-gray-100 text-gray-700 transition-colors"><ImageIcon size={20} className="text-purple-500" /></button></div></div>)}
+          </div>
+        ) : (
+          <div className="flex-1 flex flex-col items-center justify-center text-gray-400 dark:text-gray-500 p-8 md:p-12">
+            <div className="w-20 h-20 rounded-2xl bg-gray-100 dark:bg-gray-800 flex items-center justify-center mb-5">
+              <FileText size={40} className="text-gray-300 dark:text-gray-600" />
+            </div>
+            <p className="text-lg font-medium text-gray-500 dark:text-gray-400 mb-1">Selecciona o crea una nota</p>
+            <p className="text-sm text-gray-400 dark:text-gray-500 mb-6">Tu contenido queda guardado automáticamente</p>
+            <Button onClick={createNote} variant="primary" className="mt-2">Crear primera nota</Button>
+          </div>
+        )}
+        {viewMode === 'notes' && activeNote && (
+          <div className="fixed bottom-6 left-0 right-0 flex justify-center px-4 z-20 pointer-events-none">
+            <div className="bg-white/95 dark:bg-gray-800/95 backdrop-blur-md shadow-xl border border-gray-200/60 dark:border-gray-600/60 rounded-full px-2 py-2.5 flex items-center gap-1 sm:gap-2 pointer-events-auto overflow-x-auto max-w-full scrollbar-hide">
+              <button onClick={() => addBlock('text')} title="Texto" className="flex-shrink-0 flex items-center justify-center w-10 h-10 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300 transition-colors"><Type size={20} className="text-indigo-500 dark:text-indigo-400" /></button>
+              <div className="w-px h-6 bg-gray-200 dark:bg-gray-600 flex-shrink-0"></div><button onClick={() => addBlock('checklist')} title="Checklist" className="flex-shrink-0 flex items-center justify-center w-10 h-10 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300 transition-colors"><CheckSquare size={20} className="text-green-500" /></button>
+              <div className="w-px h-6 bg-gray-200 dark:bg-gray-600 flex-shrink-0"></div>
+              <button onClick={() => addBlock('columns')} title="Columnas" className="flex-shrink-0 flex items-center justify-center w-10 h-10 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300 transition-colors"><Columns size={20} className="text-emerald-500" /></button>
+              <div className="w-px h-6 bg-gray-200 dark:bg-gray-600 flex-shrink-0"></div>
+              <button onClick={() => addBlock('table')} title="Tabla" className="flex-shrink-0 flex items-center justify-center w-10 h-10 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300 transition-colors"><Table size={20} className="text-orange-500" /></button>
+              <div className="w-px h-6 bg-gray-200 dark:bg-gray-600 flex-shrink-0"></div>
+              <button onClick={() => addBlock('kanban')} title="Kanban" className="flex-shrink-0 flex items-center justify-center w-10 h-10 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300 transition-colors"><Trello size={20} className="text-blue-500" /></button>
+              <div className="w-px h-6 bg-gray-200 dark:bg-gray-600 flex-shrink-0"></div>
+              <button onClick={() => addBlock('project')} title="Plan" className="flex-shrink-0 flex items-center justify-center w-10 h-10 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300 transition-colors"><CheckSquare size={20} className="text-pink-500" /></button>
+              <div className="w-px h-6 bg-gray-200 dark:bg-gray-600 flex-shrink-0"></div>
+              <button onClick={() => addBlock('special_list')} title="Lista especial" className="flex-shrink-0 flex items-center justify-center w-10 h-10 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300 transition-colors"><ListTodo size={20} className="text-teal-500" /></button>
+              <div className="w-px h-6 bg-gray-200 dark:bg-gray-600 flex-shrink-0"></div>
+              <button onClick={() => addBlock('image')} title="Imagen" className="flex-shrink-0 flex items-center justify-center w-10 h-10 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300 transition-colors"><ImageIcon size={20} className="text-purple-500" /></button>
+            </div>
+          </div>
+        )}
       </main>
     </div>
   );

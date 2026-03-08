@@ -6,6 +6,7 @@ import App from './App.jsx'
 import ContadorDinero from './pages/ContadorDinero.jsx'
 import Salud from './pages/Salud.jsx'
 import Proyectos from './pages/Proyectos.jsx'
+import Calendario from './pages/Calendario.jsx'
 import MapaMental from './pages/MapaMental.jsx'
 import AsistenteAI from './components/AsistenteAI'
 import './index.css'
@@ -19,6 +20,7 @@ ReactDOM.createRoot(document.getElementById('root')).render(
         <Route path="/dinero" element={<ContadorDinero />} />
         <Route path="/salud" element={<Salud />} />
         <Route path="/proyectos" element={<Proyectos />} />
+        <Route path="/calendario" element={<Calendario />} />
         <Route path="/mapa-mental" element={<MapaMental />} />
       </Routes>
       <AsistenteAI />
