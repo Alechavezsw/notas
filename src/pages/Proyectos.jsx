@@ -43,14 +43,30 @@ const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
 const supabase = supabaseUrl && supabaseKey ? createClient(supabaseUrl, supabaseKey) : null;
 
 function normalizeStages(stages) {
-  if (!Array.isArray(stages) || stages.length === 0) return DEFAULT_STAGES.map((s, i) => ({ ...s, id: s.id || `s${i}`, order: i, tasks: (s.tasks || []).map((t) => ({ id: t.id || Date.now() + i, text: t.text || '', done: !!t.done, dueDate: t.dueDate || null })) }));
+  if (!Array.isArray(stages) || stages.length === 0)
+    return DEFAULT_STAGES.map((s, i) => ({
+      ...s,
+      id: s.id || `s${i}`,
+      order: i,
+      tasks: (s.tasks || []).map((t, ti) => ({
+        id: t.id != null && t.id !== '' ? t.id : `task-${s.id || `s${i}`}-${ti}`,
+        text: t.text ?? '',
+        done: !!t.done,
+        dueDate: t.dueDate || null,
+      })),
+    }));
   return stages
     .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
     .map((s, i) => ({
       id: s.id || `stage-${i}`,
       name: s.name || `Etapa ${i + 1}`,
       order: i,
-      tasks: (s.tasks || []).map((t) => ({ id: t.id || Date.now() + Math.random(), text: t.text || '', done: !!t.done, dueDate: t.dueDate || null })),
+      tasks: (s.tasks || []).map((t, ti) => ({
+        id: t.id != null && t.id !== '' ? t.id : `task-${s.id || 's'}-${ti}`,
+        text: t.text ?? '',
+        done: !!t.done,
+        dueDate: t.dueDate || null,
+      })),
     }));
 }
 
@@ -241,7 +257,18 @@ export default function Proyectos() {
       stages: (p.stages || []).map((s) => {
         if (s.id !== stageId) return s;
         const tasks = s.tasks || [];
-        return { ...s, tasks: [...tasks, { id: Date.now() + Math.random(), text: '', done: false, dueDate: null }] };
+        return {
+          ...s,
+          tasks: [
+            ...tasks,
+            {
+              id: typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `task-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`,
+              text: '',
+              done: false,
+              dueDate: null,
+            },
+          ],
+        };
       }),
     }));
   };
@@ -253,7 +280,7 @@ export default function Proyectos() {
         if (s.id !== stageId) return s;
         return {
           ...s,
-          tasks: (s.tasks || []).map((t) => (t.id === taskId ? { ...t, [field]: value } : t)),
+          tasks: (s.tasks || []).map((t) => (String(t.id) === String(taskId) ? { ...t, [field]: value } : t)),
         };
       }),
     }));
@@ -264,7 +291,7 @@ export default function Proyectos() {
       ...p,
       stages: (p.stages || []).map((s) => {
         if (s.id !== stageId) return s;
-        return { ...s, tasks: (s.tasks || []).filter((t) => t.id !== taskId) };
+        return { ...s, tasks: (s.tasks || []).filter((t) => String(t.id) !== String(taskId)) };
       }),
     }));
   };
@@ -277,8 +304,8 @@ export default function Proyectos() {
       let task = null;
       const stages = (p.stages || []).map((s) => {
         if (s.id === fromStageId) {
-          task = (s.tasks || []).find((t) => t.id === taskId);
-          return { ...s, tasks: (s.tasks || []).filter((t) => t.id !== taskId) };
+          task = (s.tasks || []).find((t) => String(t.id) === String(taskId));
+          return { ...s, tasks: (s.tasks || []).filter((t) => String(t.id) !== String(taskId)) };
         }
         return s;
       });
@@ -507,6 +534,33 @@ function CalendarView({ tasksByDate, month, setMonth, theme }) {
   );
 }
 
+function TaskDescriptionField({ task, stageId, done, onUpdateTask }) {
+  const ref = React.useRef(null);
+  const adjustHeight = () => {
+    const el = ref.current;
+    if (!el) return;
+    el.style.height = 'auto';
+    el.style.height = `${Math.min(200, Math.max(40, el.scrollHeight))}px`;
+  };
+  React.useEffect(() => {
+    adjustHeight();
+  }, [task.text]);
+  return (
+    <textarea
+      ref={ref}
+      rows={1}
+      value={task.text ?? ''}
+      onChange={(e) => {
+        onUpdateTask(stageId, task.id, 'text', e.target.value);
+        e.target.style.height = 'auto';
+        e.target.style.height = `${Math.min(200, Math.max(40, e.target.scrollHeight))}px`;
+      }}
+      placeholder="Describí la tarea…"
+      className={`w-full min-h-[2.5rem] px-2 py-1.5 rounded-lg border border-transparent hover:border-gray-200 focus:border-indigo-300 focus:ring-1 focus:ring-indigo-200 bg-white/80 text-sm leading-snug resize-none focus:outline-none ${done ? 'line-through text-gray-400' : 'text-gray-800'}`}
+    />
+  );
+}
+
 function ProjectBoard({
   project,
   theme,
@@ -550,7 +604,7 @@ function ProjectBoard({
         {stages.map((stage) => (
           <div
             key={stage.id}
-            className="flex-shrink-0 w-72 rounded-xl bg-white/90 border border-gray-200 shadow-lg overflow-hidden flex flex-col"
+            className="flex-shrink-0 w-80 max-w-[min(100vw-2rem,20rem)] rounded-xl bg-white/90 border border-gray-200 shadow-lg overflow-hidden flex flex-col"
           >
             <div className={`px-4 py-3 border-b ${theme.bg} ${theme.border} flex items-center justify-between`}>
               <input
@@ -573,49 +627,55 @@ function ProjectBoard({
               {(stage.tasks || []).map((task) => (
                 <div
                   key={task.id}
-                  className="group flex items-start gap-2 p-2 rounded-lg bg-gray-50 hover:bg-gray-100 border border-gray-100"
+                  className="group rounded-lg bg-gray-50 hover:bg-gray-100 border border-gray-100 p-2 space-y-2"
                 >
-                  <input
-                    type="checkbox"
-                    checked={!!task.done}
-                    onChange={(e) => onUpdateTask(stage.id, task.id, 'done', e.target.checked)}
-                    className="mt-1 w-4 h-4 rounded text-indigo-600 border-gray-300 focus:ring-indigo-500"
-                  />
-                  <input
-                    type="text"
-                    value={task.text}
-                    onChange={(e) => onUpdateTask(stage.id, task.id, 'text', e.target.value)}
-                    placeholder="Tarea..."
-                    className={`flex-1 min-w-0 bg-transparent text-sm focus:outline-none focus:ring-0 ${task.done ? 'line-through text-gray-400' : 'text-gray-800'}`}
-                  />
-                  <input
-                    type="date"
-                    value={task.dueDate || ''}
-                    onChange={(e) => onUpdateTask(stage.id, task.id, 'dueDate', e.target.value || null)}
-                    className="opacity-0 group-hover:opacity-100 text-xs border border-gray-200 rounded px-1 py-0.5 bg-white flex-shrink-0"
-                    title="Fecha límite"
-                  />
-                  <select
-                    className="opacity-0 group-hover:opacity-100 text-xs border border-gray-200 rounded px-1 py-0.5 bg-white"
-                    value=""
-                    onChange={(e) => {
-                      const toId = e.target.value;
-                      if (toId) onMoveTask(stage.id, toId, task.id);
-                      e.target.value = '';
-                    }}
-                  >
-                    <option value="">Mover a...</option>
-                    {stages.filter((s) => s.id !== stage.id).map((s) => (
-                      <option key={s.id} value={s.id}>{s.name}</option>
-                    ))}
-                  </select>
-                  <button
-                    type="button"
-                    onClick={() => onRemoveTask(stage.id, task.id)}
-                    className="p-1 text-gray-400 hover:text-red-500 opacity-0 group-hover:opacity-100"
-                  >
-                    <X size={14} />
-                  </button>
+                  <div className="flex items-start gap-2">
+                    <input
+                      type="checkbox"
+                      checked={!!task.done}
+                      onChange={(e) => onUpdateTask(stage.id, task.id, 'done', e.target.checked)}
+                      className="mt-2 w-4 h-4 rounded text-indigo-600 border-gray-300 focus:ring-indigo-500 flex-shrink-0"
+                    />
+                    <div className="flex-1 min-w-0">
+                      <TaskDescriptionField task={task} stageId={stage.id} done={!!task.done} onUpdateTask={onUpdateTask} />
+                    </div>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2 pl-6 sm:pl-8 border-t border-gray-200/80 pt-2">
+                    <div className="flex items-center gap-1 text-xs text-gray-500">
+                      <Calendar size={12} className="text-gray-400" />
+                      <span className="hidden sm:inline">Límite</span>
+                      <input
+                        type="date"
+                        value={task.dueDate || ''}
+                        onChange={(e) => onUpdateTask(stage.id, task.id, 'dueDate', e.target.value || null)}
+                        className="text-xs border border-gray-200 rounded-lg px-2 py-1 bg-white"
+                        title="Fecha límite"
+                      />
+                    </div>
+                    <select
+                      className="text-xs border border-gray-200 rounded-lg px-2 py-1 bg-white max-w-[140px]"
+                      value=""
+                      aria-label="Mover tarea"
+                      onChange={(e) => {
+                        const toId = e.target.value;
+                        if (toId) onMoveTask(stage.id, toId, task.id);
+                        e.target.value = '';
+                      }}
+                    >
+                      <option value="">Mover a…</option>
+                      {stages.filter((s) => s.id !== stage.id).map((s) => (
+                        <option key={s.id} value={s.id}>{s.name}</option>
+                      ))}
+                    </select>
+                    <button
+                      type="button"
+                      onClick={() => onRemoveTask(stage.id, task.id)}
+                      className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg ml-auto"
+                      title="Eliminar tarea"
+                    >
+                      <X size={14} />
+                    </button>
+                  </div>
                 </div>
               ))}
             </div>
