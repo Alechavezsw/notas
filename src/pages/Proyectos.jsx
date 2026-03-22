@@ -13,6 +13,9 @@ import {
   ChevronRight,
   Calendar,
   LayoutGrid,
+  Target,
+  AlignLeft,
+  Activity,
 } from 'lucide-react';
 
 const STORAGE_KEY = 'alenotes_projects_v2';
@@ -75,6 +78,40 @@ function countTasks(project) {
   return stages.reduce((sum, s) => sum + (s.tasks || []).length, 0);
 }
 
+function normalizeObjectives(raw) {
+  if (!Array.isArray(raw)) return [];
+  return raw.map((o, i) => ({
+    id: o.id != null && o.id !== '' ? o.id : `obj-${i}`,
+    text: typeof o.text === 'string' ? o.text : '',
+    done: !!o.done,
+  }));
+}
+
+function computeTaskProgress(project) {
+  const stages = project.stages || [];
+  let done = 0;
+  let total = 0;
+  stages.forEach((s) => {
+    (s.tasks || []).forEach((t) => {
+      total += 1;
+      if (t.done) done += 1;
+    });
+  });
+  const pct = total > 0 ? Math.round((done / total) * 100) : 0;
+  return { done, total, pct };
+}
+
+function computeObjectivesProgress(objectives) {
+  const list = Array.isArray(objectives) ? objectives : [];
+  if (list.length === 0) return { done: 0, total: 0, pct: 0 };
+  const done = list.filter((o) => o.done).length;
+  return { done, total: list.length, pct: Math.round((done / list.length) * 100) };
+}
+
+function newObjectiveId() {
+  return typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `obj-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+}
+
 export default function Proyectos() {
   const [projects, setProjects] = useState([]);
   const [selectedProject, setSelectedProject] = useState(null);
@@ -96,7 +133,15 @@ export default function Proyectos() {
         try {
           const raw = localStorage.getItem(STORAGE_KEY);
           const parsed = raw ? JSON.parse(raw) : [];
-          setProjects(parsed.map((p) => ({ ...p, tags: p.tags || [], stages: normalizeStages(p.stages) })));
+          setProjects(
+            parsed.map((p) => ({
+              ...p,
+              tags: p.tags || [],
+              description: p.description ?? '',
+              objectives: normalizeObjectives(p.objectives),
+              stages: normalizeStages(p.stages),
+            }))
+          );
         } catch (_) {}
         setIsLoading(false);
       }, 10000);
@@ -111,6 +156,8 @@ export default function Proyectos() {
                 name: p.name || '',
                 color: p.color || 'gray',
                 tags: p.tags || [],
+                description: p.description ?? '',
+                objectives: normalizeObjectives(p.objectives),
                 stages: normalizeStages(p.stages),
               }))
             );
@@ -118,7 +165,15 @@ export default function Proyectos() {
             try {
               const raw = localStorage.getItem(STORAGE_KEY);
               const parsed = raw ? JSON.parse(raw) : [];
-              setProjects(parsed.map((p) => ({ ...p, tags: p.tags || [], stages: normalizeStages(p.stages) })));
+              setProjects(
+              parsed.map((p) => ({
+                ...p,
+                tags: p.tags || [],
+                description: p.description ?? '',
+                objectives: normalizeObjectives(p.objectives),
+                stages: normalizeStages(p.stages),
+              }))
+            );
             } catch (_) {}
           }
         } catch (_) {
@@ -126,7 +181,15 @@ export default function Proyectos() {
             try {
               const raw = localStorage.getItem(STORAGE_KEY);
               const parsed = raw ? JSON.parse(raw) : [];
-              setProjects(parsed.map((p) => ({ ...p, tags: p.tags || [], stages: normalizeStages(p.stages) })));
+              setProjects(
+                parsed.map((p) => ({
+                  ...p,
+                  tags: p.tags || [],
+                  description: p.description ?? '',
+                  objectives: normalizeObjectives(p.objectives),
+                  stages: normalizeStages(p.stages),
+                }))
+              );
             } catch (_) {}
           }
         } finally {
@@ -144,7 +207,15 @@ export default function Proyectos() {
       try {
         const raw = localStorage.getItem(STORAGE_KEY);
         const parsed = raw ? JSON.parse(raw) : [];
-        setProjects(parsed.map((p) => ({ ...p, stages: normalizeStages(p.stages) })));
+        setProjects(
+          parsed.map((p) => ({
+            ...p,
+            tags: p.tags || [],
+            description: p.description ?? '',
+            objectives: normalizeObjectives(p.objectives),
+            stages: normalizeStages(p.stages),
+          }))
+        );
       } catch (_) {}
       setIsLoading(false);
     }
@@ -155,7 +226,14 @@ export default function Proyectos() {
       setSaveStatus('saving');
       setSaveError(null);
       try {
-        const payload = list.map((p) => ({ name: p.name, color: p.color, tags: p.tags || [], stages: p.stages || [] }));
+        const payload = list.map((p) => ({
+          name: p.name,
+          color: p.color,
+          tags: p.tags || [],
+          stages: p.stages || [],
+          description: p.description ?? '',
+          objectives: p.objectives || [],
+        }));
         const { error } = await supabase.from('projects').upsert(payload, { onConflict: 'name' });
         if (error) throw error;
         setSaveStatus('saved');
@@ -193,7 +271,10 @@ export default function Proyectos() {
     const trimmed = newName.trim();
     if (!trimmed || projects.some((p) => p.name === trimmed)) return;
     const color = COLOR_KEYS[Math.floor(Math.random() * COLOR_KEYS.length)];
-    setProjects((prev) => [...prev, { name: trimmed, color, tags: [], stages: normalizeStages([]) }]);
+    setProjects((prev) => [
+      ...prev,
+      { name: trimmed, color, tags: [], description: '', objectives: [], stages: normalizeStages([]) },
+    ]);
     setNewName('');
   };
 
@@ -230,6 +311,31 @@ export default function Proyectos() {
 
   const removeTag = (projName, tag) => {
     updateProject(projName, (p) => ({ ...p, tags: (p.tags || []).filter((t) => t !== tag) }));
+  };
+
+  const updateProjectDescription = (projName, description) => {
+    updateProject(projName, (p) => ({ ...p, description }));
+  };
+
+  const addObjective = (projName) => {
+    updateProject(projName, (p) => ({
+      ...p,
+      objectives: [...(p.objectives || []), { id: newObjectiveId(), text: '', done: false }],
+    }));
+  };
+
+  const updateObjective = (projName, objId, field, value) => {
+    updateProject(projName, (p) => ({
+      ...p,
+      objectives: (p.objectives || []).map((o) => (String(o.id) === String(objId) ? { ...o, [field]: value } : o)),
+    }));
+  };
+
+  const removeObjective = (projName, objId) => {
+    updateProject(projName, (p) => ({
+      ...p,
+      objectives: (p.objectives || []).filter((o) => String(o.id) !== String(objId)),
+    }));
   };
 
   const addStage = (projName) => {
@@ -418,6 +524,8 @@ export default function Proyectos() {
                   const theme = COLOR_PALETTE[proj.color] || COLOR_PALETTE.gray;
                   const totalTasks = countTasks(proj);
                   const stagesCount = (proj.stages || []).length;
+                  const tp = computeTaskProgress(proj);
+                  const op = computeObjectivesProgress(proj.objectives);
                   return (
                     <div
                       key={proj.name}
@@ -429,6 +537,20 @@ export default function Proyectos() {
                         <div className="flex-1 min-w-0">
                           <h2 className={`font-semibold truncate ${theme.text}`}>{proj.name}</h2>
                           <p className="text-xs text-gray-500">{stagesCount} etapas · {totalTasks} tareas</p>
+                          {totalTasks > 0 && (
+                            <div className="mt-2">
+                              <div className="flex justify-between text-[10px] text-gray-500 mb-0.5">
+                                <span>Progreso tareas</span>
+                                <span>{tp.pct}%</span>
+                              </div>
+                              <div className="h-1.5 bg-white/60 rounded-full overflow-hidden border border-gray-200/50">
+                                <div className={`h-full rounded-full ${theme.dot} transition-all`} style={{ width: `${tp.pct}%` }} />
+                              </div>
+                            </div>
+                          )}
+                          {op.total > 0 && (
+                            <p className="text-[10px] text-gray-500 mt-1">Objetivos: {op.pct}%</p>
+                          )}
                         </div>
                         <ChevronRight size={20} className="text-gray-400 flex-shrink-0" />
                       </div>
@@ -440,6 +562,14 @@ export default function Proyectos() {
           </>
         ) : (
           <>
+            <ProjectOverviewPanel
+              project={current}
+              theme={COLOR_PALETTE[current.color] || COLOR_PALETTE.gray}
+              onDescriptionChange={(v) => updateProjectDescription(current.name, v)}
+              onAddObjective={() => addObjective(current.name)}
+              onUpdateObjective={(id, field, value) => updateObjective(current.name, id, field, value)}
+              onRemoveObjective={(id) => removeObjective(current.name, id)}
+            />
             <div className="flex items-center gap-2 mb-4">
               <span className="text-sm text-gray-500">Vista:</span>
               <button type="button" onClick={() => setViewMode('kanban')} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${viewMode === 'kanban' ? 'bg-indigo-100 text-indigo-700' : 'text-gray-600 hover:bg-gray-100'}`}><LayoutGrid size={16} /> Kanban</button>
@@ -468,6 +598,145 @@ export default function Proyectos() {
         )}
       </main>
     </div>
+  );
+}
+
+function ProgressBar({ label, done, total, pct, barClass }) {
+  return (
+    <div>
+      <div className="flex justify-between text-xs text-gray-600 mb-1">
+        <span className="font-medium">{label}</span>
+        <span className="tabular-nums text-gray-500">
+          {total > 0 ? `${done}/${total} · ${pct}%` : 'Sin ítems'}
+        </span>
+      </div>
+      <div className="h-2.5 bg-gray-100 rounded-full overflow-hidden border border-gray-200/80">
+        <div
+          className={`h-full rounded-full transition-all duration-300 ${barClass || 'bg-indigo-500'}`}
+          style={{ width: `${total > 0 ? pct : 0}%` }}
+        />
+      </div>
+    </div>
+  );
+}
+
+function ProjectOverviewPanel({
+  project,
+  theme,
+  onDescriptionChange,
+  onAddObjective,
+  onUpdateObjective,
+  onRemoveObjective,
+}) {
+  const taskP = computeTaskProgress(project);
+  const objP = computeObjectivesProgress(project.objectives);
+  const objectives = project.objectives || [];
+  const description = project.description ?? '';
+
+  return (
+    <section className={`rounded-2xl bg-white/90 backdrop-blur border ${theme.border} shadow-lg shadow-gray-100 overflow-hidden mb-6`}>
+      <div className={`px-5 py-4 border-b ${theme.bg} ${theme.border}`}>
+        <div className="flex items-center gap-2 mb-1">
+          <Activity size={20} className={theme.text} />
+          <h2 className={`font-semibold text-lg ${theme.text}`}>Resumen del proyecto</h2>
+        </div>
+        <p className="text-xs text-gray-500">Descripción, objetivos y progreso general</p>
+      </div>
+      <div className="p-5 space-y-6">
+        <div>
+          <div className="flex items-center gap-2 mb-2 text-sm font-semibold text-gray-700">
+            <AlignLeft size={16} className="text-gray-500" />
+            Descripción
+          </div>
+          <textarea
+            value={description}
+            onChange={(e) => onDescriptionChange(e.target.value)}
+            placeholder="Contá de qué trata el proyecto, contexto, notas importantes…"
+            rows={4}
+            className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-200 focus:border-indigo-300 resize-y min-h-[100px]"
+          />
+        </div>
+
+        <div className={`rounded-xl ${theme.bg} ${theme.border} border p-4 space-y-4`}>
+          <div className="flex items-center gap-2 text-sm font-semibold text-gray-800">
+            <Activity size={16} className="text-indigo-600" />
+            Progreso
+          </div>
+          <ProgressBar
+            label="Tareas del tablero"
+            done={taskP.done}
+            total={taskP.total}
+            pct={taskP.pct}
+            barClass={theme.dot || 'bg-indigo-500'}
+          />
+          <div className="pt-1">
+            <ProgressBar
+              label="Objetivos del proyecto"
+              done={objP.done}
+              total={objP.total}
+              pct={objP.pct}
+              barClass="bg-violet-500"
+            />
+          </div>
+          {taskP.total === 0 && objP.total === 0 && (
+            <p className="text-xs text-gray-500">Agregá tareas en el Kanban u objetivos abajo para ver el progreso.</p>
+          )}
+        </div>
+
+        <div>
+          <div className="flex items-center justify-between gap-2 mb-3">
+            <div className="flex items-center gap-2 text-sm font-semibold text-gray-700">
+              <Target size={16} className="text-violet-600" />
+              Objetivos
+            </div>
+            <button
+              type="button"
+              onClick={onAddObjective}
+              className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium bg-violet-100 text-violet-800 hover:bg-violet-200 border border-violet-200 transition-colors"
+            >
+              <Plus size={14} />
+              Agregar objetivo
+            </button>
+          </div>
+          {objectives.length === 0 ? (
+            <p className="text-sm text-gray-400 py-4 text-center border border-dashed border-gray-200 rounded-xl">
+              Definí hitos o metas; marcálos al cumplirlos para ver el progreso.
+            </p>
+          ) : (
+            <ul className="space-y-2">
+              {objectives.map((o) => (
+                <li
+                  key={o.id}
+                  className="flex items-start gap-3 p-3 rounded-xl border border-gray-100 bg-gray-50/80 hover:bg-gray-50"
+                >
+                  <input
+                    type="checkbox"
+                    checked={!!o.done}
+                    onChange={(e) => onUpdateObjective(o.id, 'done', e.target.checked)}
+                    className="mt-1 w-4 h-4 rounded text-violet-600 border-gray-300 focus:ring-violet-500"
+                  />
+                  <input
+                    type="text"
+                    value={o.text ?? ''}
+                    onChange={(e) => onUpdateObjective(o.id, 'text', e.target.value)}
+                    placeholder="Ej. Lanzar MVP, cerrar presupuesto…"
+                    className="flex-1 min-w-0 bg-transparent text-sm focus:outline-none focus:ring-0 text-gray-800"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => onRemoveObjective(o.id)}
+                    className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg"
+                    title="Quitar objetivo"
+                  >
+                    <Trash2 size={16} />
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      </div>
+    </section>
   );
 }
 

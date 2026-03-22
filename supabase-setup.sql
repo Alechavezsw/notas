@@ -113,6 +113,23 @@ BEGIN
     END IF;
 END $$;
 
+-- Migración: descripción y objetivos del proyecto (objetivos = [{ id, text, done }])
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'projects' AND column_name = 'description'
+    ) THEN
+        ALTER TABLE projects ADD COLUMN description TEXT NOT NULL DEFAULT '';
+    END IF;
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'projects' AND column_name = 'objectives'
+    ) THEN
+        ALTER TABLE projects ADD COLUMN objectives JSONB NOT NULL DEFAULT '[]'::jsonb;
+    END IF;
+END $$;
+
 -- Tabla billetera (una fila por defecto: id = 'default')
 -- dinero_actual y a_cobrar: array de { id, concepto, monto?, fecha? }
 CREATE TABLE IF NOT EXISTS billetera (

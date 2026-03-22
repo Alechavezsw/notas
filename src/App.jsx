@@ -587,9 +587,12 @@ export default function App() {
             setNotes(formattedNotes);
           }
           if (!projectsError && projectsData) {
-            const formattedProjects = projectsData.map(p => ({
+            const formattedProjects = projectsData.map((p) => ({
               ...p,
-              tags: p.tags || []
+              tags: p.tags || [],
+              description: p.description ?? '',
+              objectives: Array.isArray(p.objectives) ? p.objectives : [],
+              stages: Array.isArray(p.stages) ? p.stages : [],
             }));
             setProjects(formattedProjects);
           }
@@ -603,7 +606,11 @@ export default function App() {
         
         if (localNotes.length === 0) {
            setNotes([{ id: 1, title: 'Bienvenido a Ale Notes 🚀', category: 'General', updatedAt: new Date().toISOString(), blocks: [{ type: 'text', content: 'Tus notas ahora en la nube ☁️ (Listo para conectar Supabase)' }] }]);
-           setProjects([{ name: 'General', color: 'indigo', tags: [] }, { name: 'Trabajo', color: 'blue', tags: [] }, { name: 'Personal', color: 'emerald', tags: [] }]);
+           setProjects([
+            { name: 'General', color: 'indigo', tags: [], description: '', objectives: [], stages: [] },
+            { name: 'Trabajo', color: 'blue', tags: [], description: '', objectives: [], stages: [] },
+            { name: 'Personal', color: 'emerald', tags: [], description: '', objectives: [], stages: [] },
+          ]);
         } else {
            setNotes(localNotes);
            setProjects(localProjects);
@@ -672,10 +679,13 @@ export default function App() {
           updated_at: n.updatedAt || new Date().toISOString()
         }));
         
-        const projectUpdates = currentProjects.map(p => ({ 
-          name: p.name, 
-          color: p.color, 
-          tags: Array.isArray(p.tags) ? p.tags : [] 
+        const projectUpdates = currentProjects.map((p) => ({
+          name: p.name,
+          color: p.color,
+          tags: Array.isArray(p.tags) ? p.tags : [],
+          stages: Array.isArray(p.stages) ? p.stages : [],
+          description: p.description ?? '',
+          objectives: Array.isArray(p.objectives) ? p.objectives : [],
         }));
 
         let hasError = false;
@@ -872,7 +882,7 @@ export default function App() {
       const trimmed = newProjectName.trim(); 
       if (!projects.some(p => p.name === trimmed)) { 
         const randomColor = COLOR_KEYS[Math.floor(Math.random() * COLOR_KEYS.length)]; 
-        setProjects([...projects, { name: trimmed, color: randomColor, tags: [] }]); 
+        setProjects([...projects, { name: trimmed, color: randomColor, tags: [], description: '', objectives: [], stages: [] }]); 
         setSelectedCategory(trimmed); 
         setViewMode('notes'); 
       } 

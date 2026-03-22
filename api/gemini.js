@@ -18,10 +18,17 @@ export default async function handler(req, res) {
   }
 
   try {
-    const { messages, systemInstruction } = req.body || {};
+    const { messages, systemInstruction, contextSnapshot } = req.body || {};
     if (!Array.isArray(messages) || messages.length === 0) {
       return res.status(400).json({ error: 'messages array required' });
     }
+
+    const contextBlock =
+      contextSnapshot && String(contextSnapshot).trim()
+        ? `\n\n## Datos actuales de Ale en Ale Notes (referencia factual; no inventes cifras fuera de esto)\n${String(contextSnapshot).trim().slice(0, 50000)}`
+        : '';
+
+    const fullSystem = `${systemInstruction || ''}${contextBlock}`.slice(0, 100000);
 
     const ai = new GoogleGenAI({ apiKey: key });
     const contents = messages.map((m) => ({
@@ -32,7 +39,7 @@ export default async function handler(req, res) {
     const response = await ai.models.generateContent({
       model: MODEL,
       config: {
-        systemInstruction: systemInstruction || '',
+        systemInstruction: fullSystem,
         temperature: 0.7,
       },
       contents,
