@@ -25,6 +25,8 @@ import {
   Loader2,
   PiggyBank,
   Receipt,
+  CreditCard,
+  UserCircle,
 } from 'lucide-react';
 
 const STORAGE_KEY = 'alenotes_billetera';
@@ -46,7 +48,34 @@ function formatMoney(num) {
   }).format(num);
 }
 
-function EntradaLista({ items, onAdd, onUpdate, onDelete, emptyMessage, addLabel, withDate = false, withCategory = false }) {
+function EntradaLista({
+  items,
+  onAdd,
+  onUpdate,
+  onDelete,
+  emptyMessage,
+  addLabel,
+  withDate = false,
+  withCategory = false,
+  extraField = null,
+  extraFieldFirst = false,
+  withVencimiento = false,
+  focusRing = 'emerald',
+}) {
+  const ring = focusRing === 'slate' ? 'focus:ring-slate-200' : focusRing === 'teal' ? 'focus:ring-teal-200' : 'focus:ring-emerald-200';
+  const ringBorder = focusRing === 'slate' ? 'focus:border-slate-300' : focusRing === 'teal' ? 'focus:border-teal-300' : 'focus:border-emerald-300';
+
+  const ExtraInput = ({ item }) =>
+    extraField ? (
+      <input
+        type="text"
+        placeholder={extraField.placeholder}
+        value={item[extraField.key] || ''}
+        onChange={(e) => onUpdate(item.id, extraField.key, e.target.value)}
+        className={`flex-1 min-w-[120px] max-w-[200px] px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 ${ring} ${ringBorder}`}
+      />
+    ) : null;
+
   return (
     <div className="space-y-2">
       {items.length === 0 ? (
@@ -69,13 +98,15 @@ function EntradaLista({ items, onAdd, onUpdate, onDelete, emptyMessage, addLabel
                 ))}
               </select>
             )}
+            {extraField && extraFieldFirst && <ExtraInput item={item} />}
             <input
               type="text"
               placeholder="Concepto"
               value={item.concepto || ''}
               onChange={(e) => onUpdate(item.id, 'concepto', e.target.value)}
-              className="flex-1 min-w-[100px] px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-200 focus:border-emerald-300"
+              className={`flex-1 min-w-[100px] px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 ${ring} ${ringBorder}`}
             />
+            {extraField && !extraFieldFirst && <ExtraInput item={item} />}
             <div className="flex items-center gap-1">
               <span className="text-gray-500 text-sm">$</span>
               <input
@@ -84,7 +115,7 @@ function EntradaLista({ items, onAdd, onUpdate, onDelete, emptyMessage, addLabel
                 min={0}
                 value={item.monto ?? ''}
                 onChange={(e) => onUpdate(item.id, 'monto', e.target.value)}
-                className="w-24 px-3 py-2 rounded-lg border border-gray-200 text-sm font-medium tabular-nums focus:outline-none focus:ring-2 focus:ring-emerald-200 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                className={`w-24 px-3 py-2 rounded-lg border border-gray-200 text-sm font-medium tabular-nums focus:outline-none focus:ring-2 ${ring} [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none`}
               />
             </div>
             {withDate && (
@@ -95,6 +126,17 @@ function EntradaLista({ items, onAdd, onUpdate, onDelete, emptyMessage, addLabel
                   value={item.fecha || ''}
                   onChange={(e) => onUpdate(item.id, 'fecha', e.target.value)}
                   className="px-2 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-amber-200"
+                />
+              </div>
+            )}
+            {withVencimiento && (
+              <div className="flex items-center gap-1" title="Vencimiento">
+                <span className="text-[10px] text-gray-400 uppercase whitespace-nowrap">Vence</span>
+                <input
+                  type="date"
+                  value={item.vencimiento || ''}
+                  onChange={(e) => onUpdate(item.id, 'vencimiento', e.target.value)}
+                  className="px-2 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-slate-200"
                 />
               </div>
             )}
@@ -125,6 +167,8 @@ export default function ContadorDinero() {
   const [dineroActual, setDineroActual] = useState([]);
   const [aCobrar, setACobrar] = useState([]);
   const [gastos, setGastos] = useState([]);
+  const [deudas, setDeudas] = useState([]);
+  const [deudores, setDeudores] = useState([]);
   const [metaAhorro, setMetaAhorro] = useState(null);
   const cantidadesRef = useRef({});
   const [isLoading, setIsLoading] = useState(!!supabase);
@@ -146,6 +190,14 @@ export default function ContadorDinero() {
   const totalGastos = useMemo(
     () => gastos.reduce((sum, it) => sum + (Number(it.monto) || 0), 0),
     [gastos]
+  );
+  const totalDeudas = useMemo(
+    () => deudas.reduce((sum, it) => sum + (Number(it.monto) || 0), 0),
+    [deudas]
+  );
+  const totalDeudores = useMemo(
+    () => deudores.reduce((sum, it) => sum + (Number(it.monto) || 0), 0),
+    [deudores]
   );
 
   const chartPieData = useMemo(() => {
@@ -170,7 +222,7 @@ export default function ContadorDinero() {
         try {
           const { data, error } = await supabase
             .from('billetera')
-            .select('dinero_actual, a_cobrar, cantidades, gastos')
+            .select('dinero_actual, a_cobrar, cantidades, gastos, deudas, deudores')
             .eq('id', BILLETERA_ID)
             .maybeSingle();
           if (!error && data) {
@@ -187,6 +239,12 @@ export default function ContadorDinero() {
             }
             if (Array.isArray(data.gastos)) {
               setGastos(data.gastos.map((it) => ({ ...it, id: it.id ?? Date.now() + Math.random() })));
+            }
+            if (Array.isArray(data.deudas)) {
+              setDeudas(data.deudas.map((it) => ({ ...it, id: it.id ?? Date.now() + Math.random() })));
+            }
+            if (Array.isArray(data.deudores)) {
+              setDeudores(data.deudores.map((it) => ({ ...it, id: it.id ?? Date.now() + Math.random() })));
             }
             if (Array.isArray(data.dinero_actual) && data.dinero_actual.length === 0 && data.cantidades && typeof data.cantidades === 'object') {
               const total = Object.entries(data.cantidades).reduce((s, [v, c]) => s + Number(v) * (Number(c) || 0), 0);
@@ -214,6 +272,8 @@ export default function ContadorDinero() {
           if (Array.isArray(data.dineroActual)) setDineroActual(data.dineroActual);
           if (Array.isArray(data.aCobrar)) setACobrar(data.aCobrar);
           if (Array.isArray(data.gastos)) setGastos(data.gastos);
+          if (Array.isArray(data.deudas)) setDeudas(data.deudas);
+          if (Array.isArray(data.deudores)) setDeudores(data.deudores);
           if (data.metaAhorro != null) setMetaAhorro(data.metaAhorro);
         }
       } catch (_) {}
@@ -221,7 +281,7 @@ export default function ContadorDinero() {
     }
   }, []);
 
-  const saveToBackend = useCallback(async (dineroActualData, aCobrarData, gastosData) => {
+  const saveToBackend = useCallback(async (dineroActualData, aCobrarData, gastosData, deudasData, deudoresData) => {
     if (supabase) {
       setSaveStatus('saving');
       setSaveError(null);
@@ -234,6 +294,8 @@ export default function ContadorDinero() {
             dinero_actual: dineroActualData,
             a_cobrar: aCobrarData,
             gastos: gastosData,
+            deudas: deudasData,
+            deudores: deudoresData,
             updated_at: new Date().toISOString(),
           },
           { onConflict: 'id' }
@@ -246,12 +308,12 @@ export default function ContadorDinero() {
         setSaveStatus('error');
         setSaveError(msg);
         try {
-          localStorage.setItem(STORAGE_KEY, JSON.stringify({ dineroActual: dineroActualData, aCobrar: aCobrarData, gastos: gastosData, metaAhorro }));
+          localStorage.setItem(STORAGE_KEY, JSON.stringify({ dineroActual: dineroActualData, aCobrar: aCobrarData, gastos: gastosData, deudas: deudasData, deudores: deudoresData, metaAhorro }));
         } catch (_) {}
       }
     } else {
       try {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify({ dineroActual: dineroActualData, aCobrar: aCobrarData, gastos: gastosData, metaAhorro }));
+        localStorage.setItem(STORAGE_KEY, JSON.stringify({ dineroActual: dineroActualData, aCobrar: aCobrarData, gastos: gastosData, deudas: deudasData, deudores: deudoresData, metaAhorro }));
       } catch (_) {}
     }
   }, [metaAhorro]);
@@ -259,12 +321,18 @@ export default function ContadorDinero() {
   useEffect(() => {
     if (isLoading) return;
     if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
-    saveTimeoutRef.current = setTimeout(() => saveToBackend(dineroActual, aCobrar, gastos), 1000);
+    saveTimeoutRef.current = setTimeout(() => saveToBackend(dineroActual, aCobrar, gastos, deudas, deudores), 1000);
     return () => { if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current); };
-  }, [dineroActual, aCobrar, gastos, isLoading, saveToBackend]);
+  }, [dineroActual, aCobrar, gastos, deudas, deudores, isLoading, saveToBackend]);
 
   const addEntrada = (setter, withCat = false) => {
     setter((prev) => [...prev, { id: Date.now(), concepto: '', monto: '', fecha: '', ...(withCat ? { categoria: '' } : {}) }]);
+  };
+  const addDeuda = () => {
+    setDeudas((prev) => [...prev, { id: Date.now(), acreedor: '', concepto: '', monto: '', fecha: '', vencimiento: '' }]);
+  };
+  const addDeudor = () => {
+    setDeudores((prev) => [...prev, { id: Date.now(), nombre: '', concepto: '', monto: '', fecha: '' }]);
   };
   const updateEntrada = (setter, id, field, value) => {
     setter((prev) => prev.map((it) => (it.id === id ? { ...it, [field]: value } : it)));
@@ -366,6 +434,25 @@ export default function ContadorDinero() {
               <span className="text-indigo-200 text-xs font-semibold uppercase tracking-wider">Total proyectado</span>
             </div>
             <p className="text-2xl md:text-3xl font-bold tabular-nums">${formatMoney(totalProyectado)}</p>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-8">
+          <div className="rounded-2xl bg-gradient-to-br from-slate-600 to-slate-700 p-5 text-white shadow-xl shadow-slate-200/40">
+            <div className="flex items-center gap-2 mb-1">
+              <CreditCard size={18} className="opacity-90" />
+              <span className="text-slate-200 text-xs font-semibold uppercase tracking-wider">Deudas (debés)</span>
+            </div>
+            <p className="text-2xl md:text-3xl font-bold tabular-nums">${formatMoney(totalDeudas)}</p>
+            <p className="text-xs text-slate-300 mt-1">Total que debés a terceros</p>
+          </div>
+          <div className="rounded-2xl bg-gradient-to-br from-teal-500 to-cyan-600 p-5 text-white shadow-xl shadow-teal-200/50">
+            <div className="flex items-center gap-2 mb-1">
+              <UserCircle size={18} className="opacity-90" />
+              <span className="text-teal-100 text-xs font-semibold uppercase tracking-wider">Deudores (te deben)</span>
+            </div>
+            <p className="text-2xl md:text-3xl font-bold tabular-nums">${formatMoney(totalDeudores)}</p>
+            <p className="text-xs text-teal-100/90 mt-1">Total que te deben otras personas</p>
           </div>
         </div>
 
@@ -557,6 +644,67 @@ export default function ContadorDinero() {
               <Plus size={18} />
               Agregar gasto
             </button>
+          </div>
+        </section>
+
+        {/* Deudas: lo que debés */}
+        <section className="rounded-2xl bg-white/90 backdrop-blur border border-gray-200/60 shadow-lg shadow-gray-100 overflow-hidden mb-6">
+          <div className="bg-gradient-to-r from-slate-600/10 to-slate-500/5 px-5 py-4 border-b border-slate-200 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <div className="w-9 h-9 rounded-xl bg-slate-100 flex items-center justify-center">
+                <CreditCard size={18} className="text-slate-600" />
+              </div>
+              <div>
+                <h2 className="font-semibold text-gray-800">Deudas</h2>
+                <p className="text-xs text-gray-500">Préstamos, tarjetas, cuotas que debés pagar</p>
+              </div>
+            </div>
+            <span className="text-lg font-bold text-slate-700 tabular-nums">${formatMoney(totalDeudas)}</span>
+          </div>
+          <div className="p-4">
+            <EntradaLista
+              items={deudas}
+              onAdd={addDeuda}
+              onUpdate={(id, field, value) => updateEntrada(setDeudas, id, field, value)}
+              onDelete={(id) => deleteEntrada(setDeudas, id)}
+              emptyMessage="No registraste deudas. Agregá a quién debés, el concepto y el monto."
+              addLabel="Agregar deuda"
+              withDate
+              extraField={{ key: 'acreedor', placeholder: 'Acreedor / a quién debés' }}
+              extraFieldFirst
+              withVencimiento
+              focusRing="slate"
+            />
+          </div>
+        </section>
+
+        {/* Deudores: quienes te deben */}
+        <section className="rounded-2xl bg-white/90 backdrop-blur border border-gray-200/60 shadow-lg shadow-gray-100 overflow-hidden mb-6">
+          <div className="bg-gradient-to-r from-teal-500/10 to-cyan-500/5 px-5 py-4 border-b border-teal-100 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <div className="w-9 h-9 rounded-xl bg-teal-100 flex items-center justify-center">
+                <UserCircle size={18} className="text-teal-600" />
+              </div>
+              <div>
+                <h2 className="font-semibold text-gray-800">Deudores</h2>
+                <p className="text-xs text-gray-500">Personas que te deben dinero</p>
+              </div>
+            </div>
+            <span className="text-lg font-bold text-teal-600 tabular-nums">${formatMoney(totalDeudores)}</span>
+          </div>
+          <div className="p-4">
+            <EntradaLista
+              items={deudores}
+              onAdd={addDeudor}
+              onUpdate={(id, field, value) => updateEntrada(setDeudores, id, field, value)}
+              onDelete={(id) => deleteEntrada(setDeudores, id)}
+              emptyMessage="No hay deudores. Agregá quién te debe y el monto."
+              addLabel="Agregar deudor"
+              withDate
+              extraField={{ key: 'nombre', placeholder: 'Quién te debe' }}
+              extraFieldFirst
+              focusRing="teal"
+            />
           </div>
         </section>
 

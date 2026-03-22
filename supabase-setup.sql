@@ -160,6 +160,23 @@ BEGIN
     END IF;
 END $$;
 
+-- Migración: deudas (lo que debés) y deudores (quienes te deben)
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'billetera' AND column_name = 'deudas'
+    ) THEN
+        ALTER TABLE billetera ADD COLUMN deudas JSONB NOT NULL DEFAULT '[]'::jsonb;
+    END IF;
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'billetera' AND column_name = 'deudores'
+    ) THEN
+        ALTER TABLE billetera ADD COLUMN deudores JSONB NOT NULL DEFAULT '[]'::jsonb;
+    END IF;
+END $$;
+
 -- Tabla salud (registros por día: peso, vasos_agua, horas_sueno, animo)
 -- id = 'default', registros = jsonb con clave fecha 'YYYY-MM-DD' y valor { peso, vasosAgua, horasSueno, animo }
 CREATE TABLE IF NOT EXISTS salud (
