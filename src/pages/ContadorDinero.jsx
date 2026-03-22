@@ -24,6 +24,7 @@ import {
   Calendar,
   Loader2,
   PiggyBank,
+  Receipt,
 } from 'lucide-react';
 
 const STORAGE_KEY = 'alenotes_billetera';
@@ -35,6 +36,7 @@ const supabase = supabaseUrl && supabaseKey ? createClient(supabaseUrl, supabase
 
 const COLORS = { actual: '#059669', aCobrar: '#d97706', total: '#4f46e5' };
 const CATEGORIAS = ['Efectivo', 'Banco', 'Inversión', 'Otro'];
+const GASTOS_CATEGORIAS = ['Comida', 'Transporte', 'Servicios', 'Ocio', 'Salud', 'Compras', 'Otro'];
 
 function formatMoney(num) {
   return new Intl.NumberFormat('es-AR', {
@@ -122,6 +124,7 @@ function EntradaLista({ items, onAdd, onUpdate, onDelete, emptyMessage, addLabel
 export default function ContadorDinero() {
   const [dineroActual, setDineroActual] = useState([]);
   const [aCobrar, setACobrar] = useState([]);
+  const [gastos, setGastos] = useState([]);
   const [metaAhorro, setMetaAhorro] = useState(null);
   const cantidadesRef = useRef({});
   const [isLoading, setIsLoading] = useState(!!supabase);
@@ -140,6 +143,10 @@ export default function ContadorDinero() {
   const totalProyectado = totalActual + totalACobrar;
   const metaNum = metaAhorro != null && metaAhorro !== '' ? Number(metaAhorro) : null;
   const progresoMeta = metaNum != null && metaNum > 0 ? Math.min(100, (totalActual / metaNum) * 100) : null;
+  const totalGastos = useMemo(
+    () => gastos.reduce((sum, it) => sum + (Number(it.monto) || 0), 0),
+    [gastos]
+  );
 
   const chartPieData = useMemo(() => {
     if (totalActual === 0 && totalACobrar === 0) return [{ name: 'Sin datos', value: 1, fill: '#e5e7eb' }];
@@ -163,7 +170,7 @@ export default function ContadorDinero() {
         try {
           const { data, error } = await supabase
             .from('billetera')
-            .select('dinero_actual, a_cobrar, cantidades')
+            .select('dinero_actual, a_cobrar, cantidades, gastos')
             .eq('id', BILLETERA_ID)
             .maybeSingle();
           if (!error && data) {
@@ -177,6 +184,9 @@ export default function ContadorDinero() {
             }
             if (Array.isArray(data.a_cobrar)) {
               setACobrar(data.a_cobrar.map((it) => ({ ...it, id: it.id ?? Date.now() + Math.random() })));
+            }
+            if (Array.isArray(data.gastos)) {
+              setGastos(data.gastos.map((it) => ({ ...it, id: it.id ?? Date.now() + Math.random() })));
             }
             if (Array.isArray(data.dinero_actual) && data.dinero_actual.length === 0 && data.cantidades && typeof data.cantidades === 'object') {
               const total = Object.entries(data.cantidades).reduce((s, [v, c]) => s + Number(v) * (Number(c) || 0), 0);
@@ -203,6 +213,7 @@ export default function ContadorDinero() {
           const data = JSON.parse(raw);
           if (Array.isArray(data.dineroActual)) setDineroActual(data.dineroActual);
           if (Array.isArray(data.aCobrar)) setACobrar(data.aCobrar);
+          if (Array.isArray(data.gastos)) setGastos(data.gastos);
           if (data.metaAhorro != null) setMetaAhorro(data.metaAhorro);
         }
       } catch (_) {}
@@ -210,7 +221,7 @@ export default function ContadorDinero() {
     }
   }, []);
 
-  const saveToBackend = useCallback(async (dineroActualData, aCobrarData) => {
+  const saveToBackend = useCallback(async (dineroActualData, aCobrarData, gastosData) => {
     if (supabase) {
       setSaveStatus('saving');
       setSaveError(null);
@@ -222,6 +233,7 @@ export default function ContadorDinero() {
             cantidades,
             dinero_actual: dineroActualData,
             a_cobrar: aCobrarData,
+            gastos: gastosData,
             updated_at: new Date().toISOString(),
           },
           { onConflict: 'id' }
@@ -234,12 +246,12 @@ export default function ContadorDinero() {
         setSaveStatus('error');
         setSaveError(msg);
         try {
-          localStorage.setItem(STORAGE_KEY, JSON.stringify({ dineroActual: dineroActualData, aCobrar: aCobrarData, metaAhorro }));
+          localStorage.setItem(STORAGE_KEY, JSON.stringify({ dineroActual: dineroActualData, aCobrar: aCobrarData, gastos: gastosData, metaAhorro }));
         } catch (_) {}
       }
     } else {
       try {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify({ dineroActual: dineroActualData, aCobrar: aCobrarData, metaAhorro }));
+        localStorage.setItem(STORAGE_KEY, JSON.stringify({ dineroActual: dineroActualData, aCobrar: aCobrarData, gastos: gastosData, metaAhorro }));
       } catch (_) {}
     }
   }, [metaAhorro]);
@@ -247,9 +259,9 @@ export default function ContadorDinero() {
   useEffect(() => {
     if (isLoading) return;
     if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
-    saveTimeoutRef.current = setTimeout(() => saveToBackend(dineroActual, aCobrar), 1000);
+    saveTimeoutRef.current = setTimeout(() => saveToBackend(dineroActual, aCobrar, gastos), 1000);
     return () => { if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current); };
-  }, [dineroActual, aCobrar, isLoading, saveToBackend]);
+  }, [dineroActual, aCobrar, gastos, isLoading, saveToBackend]);
 
   const addEntrada = (setter, withCat = false) => {
     setter((prev) => [...prev, { id: Date.now(), concepto: '', monto: '', fecha: '', ...(withCat ? { categoria: '' } : {}) }]);
@@ -260,6 +272,25 @@ export default function ContadorDinero() {
   const deleteEntrada = (setter, id) => {
     setter((prev) => prev.filter((it) => it.id !== id));
   };
+
+  const addGasto = () => {
+    setGastos((prev) => [...prev, { id: Date.now(), fecha: new Date().toISOString().slice(0, 10), concepto: '', monto: '', categoria: 'Otro' }]);
+  };
+  const updateGasto = (id, field, value) => {
+    setGastos((prev) => prev.map((it) => (it.id === id ? { ...it, [field]: value } : it)));
+  };
+  const deleteGasto = (id) => {
+    setGastos((prev) => prev.filter((it) => it.id !== id));
+  };
+
+  const gastosOrdenados = useMemo(() => {
+    return [...gastos].sort((a, b) => {
+      const fa = a.fecha || '';
+      const fb = b.fecha || '';
+      if (fa !== fb) return fb.localeCompare(fa);
+      return (b.id || 0) - (a.id || 0);
+    });
+  }, [gastos]);
 
   if (isLoading) {
     return (
@@ -417,6 +448,117 @@ export default function ContadorDinero() {
             </div>
           </div>
         </div>
+
+        {/* Tabla de gastos */}
+        <section className="rounded-2xl bg-white/90 backdrop-blur border border-gray-200/60 shadow-lg shadow-gray-100 overflow-hidden mb-8">
+          <div className="bg-gradient-to-r from-rose-500/10 to-orange-500/5 px-5 py-4 border-b border-rose-100 flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-2">
+              <div className="w-9 h-9 rounded-xl bg-rose-100 flex items-center justify-center">
+                <Receipt size={18} className="text-rose-600" />
+              </div>
+              <div>
+                <h2 className="font-semibold text-gray-800">Tabla de gastos</h2>
+                <p className="text-xs text-gray-500">Registrá lo que gastás para llevar el control</p>
+              </div>
+            </div>
+            <span className="text-lg font-bold text-rose-600 tabular-nums">Total: ${formatMoney(totalGastos)}</span>
+          </div>
+          <div className="p-4 overflow-x-auto">
+            <table className="w-full text-sm border-collapse min-w-[640px]">
+              <thead>
+                <tr className="border-b border-gray-200 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                  <th className="py-3 pr-3 w-[120px]">Fecha</th>
+                  <th className="py-3 pr-3">Concepto</th>
+                  <th className="py-3 pr-3 w-[140px]">Categoría</th>
+                  <th className="py-3 pr-3 w-[120px] text-right">Monto</th>
+                  <th className="py-3 w-12" />
+                </tr>
+              </thead>
+              <tbody>
+                {gastosOrdenados.length === 0 ? (
+                  <tr>
+                    <td colSpan={5} className="py-10 text-center text-gray-400">
+                      No hay gastos registrados. Agregá una fila con el botón de abajo.
+                    </td>
+                  </tr>
+                ) : (
+                  gastosOrdenados.map((row) => (
+                    <tr key={row.id} className="border-b border-gray-100 hover:bg-gray-50/80 align-middle">
+                      <td className="py-2 pr-2">
+                        <input
+                          type="date"
+                          value={row.fecha || ''}
+                          onChange={(e) => updateGasto(row.id, 'fecha', e.target.value)}
+                          className="w-full px-2 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-rose-200"
+                        />
+                      </td>
+                      <td className="py-2 pr-2">
+                        <input
+                          type="text"
+                          placeholder="Ej. Supermercado"
+                          value={row.concepto || ''}
+                          onChange={(e) => updateGasto(row.id, 'concepto', e.target.value)}
+                          className="w-full min-w-[140px] px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-rose-200"
+                        />
+                      </td>
+                      <td className="py-2 pr-2">
+                        <select
+                          value={row.categoria || 'Otro'}
+                          onChange={(e) => updateGasto(row.id, 'categoria', e.target.value)}
+                          className="w-full px-2 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-rose-200"
+                        >
+                          {GASTOS_CATEGORIAS.map((c) => (
+                            <option key={c} value={c}>{c}</option>
+                          ))}
+                        </select>
+                      </td>
+                      <td className="py-2 pr-2 text-right">
+                        <div className="flex items-center justify-end gap-1">
+                          <span className="text-gray-500">$</span>
+                          <input
+                            type="number"
+                            min={0}
+                            placeholder="0"
+                            value={row.monto ?? ''}
+                            onChange={(e) => updateGasto(row.id, 'monto', e.target.value)}
+                            className="w-24 px-2 py-2 rounded-lg border border-gray-200 text-sm font-medium tabular-nums text-right [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                          />
+                        </div>
+                      </td>
+                      <td className="py-2 text-center">
+                        <button
+                          type="button"
+                          onClick={() => deleteGasto(row.id)}
+                          className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                          title="Eliminar fila"
+                        >
+                          <Trash2 size={18} />
+                        </button>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+              {gastosOrdenados.length > 0 && (
+                <tfoot>
+                  <tr className="bg-rose-50/50 font-semibold text-gray-800">
+                    <td colSpan={3} className="py-3 px-2 text-right">Total</td>
+                    <td className="py-3 pr-2 text-right tabular-nums text-rose-700">${formatMoney(totalGastos)}</td>
+                    <td />
+                  </tr>
+                </tfoot>
+              )}
+            </table>
+            <button
+              type="button"
+              onClick={addGasto}
+              className="mt-4 w-full flex items-center justify-center gap-2 py-3 rounded-xl border-2 border-dashed border-gray-200 text-gray-500 hover:border-rose-300 hover:text-rose-600 hover:bg-rose-50/50 transition-all text-sm font-medium"
+            >
+              <Plus size={18} />
+              Agregar gasto
+            </button>
+          </div>
+        </section>
 
         {/* Dinero actual - misma UI que A cobrar */}
         <section className="rounded-2xl bg-white/90 backdrop-blur border border-gray-200/60 shadow-lg shadow-gray-100 overflow-hidden mb-6">

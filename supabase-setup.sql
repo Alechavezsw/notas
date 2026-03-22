@@ -149,6 +149,17 @@ INSERT INTO billetera (id, cantidades, dinero_actual, a_cobrar)
 VALUES ('default', '{}'::jsonb, '[]'::jsonb, '[]'::jsonb)
 ON CONFLICT (id) DO NOTHING;
 
+-- Migración: columna gastos (tabla de gastos en billetera)
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'billetera' AND column_name = 'gastos'
+    ) THEN
+        ALTER TABLE billetera ADD COLUMN gastos JSONB NOT NULL DEFAULT '[]'::jsonb;
+    END IF;
+END $$;
+
 -- Tabla salud (registros por día: peso, vasos_agua, horas_sueno, animo)
 -- id = 'default', registros = jsonb con clave fecha 'YYYY-MM-DD' y valor { peso, vasosAgua, horasSueno, animo }
 CREATE TABLE IF NOT EXISTS salud (
