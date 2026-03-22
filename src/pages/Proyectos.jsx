@@ -278,8 +278,19 @@ export default function Proyectos() {
     setNewName('');
   };
 
-  const removeProject = (name) => {
-    if (!confirm(`¿Eliminar el proyecto "${name}"?`)) return;
+  const removeProject = async (name) => {
+    if (!confirm(`¿Eliminar el proyecto "${name}"? Esta acción no se puede deshacer.`)) return;
+    if (supabase) {
+      setSaveStatus('saving');
+      setSaveError(null);
+      const { error } = await supabase.from('projects').delete().eq('name', name);
+      if (error) {
+        setSaveError(error.message || String(error));
+        setSaveStatus('error');
+        return;
+      }
+      setSaveStatus('saved');
+    }
     setProjects((prev) => prev.filter((p) => p.name !== name));
     if (selectedProject === name) setSelectedProject(null);
   };
@@ -473,11 +484,22 @@ export default function Proyectos() {
               </Link>
             )}
           </div>
-          <h1 className="text-xl font-bold text-gray-800 flex items-center gap-2">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center text-white shadow-lg shadow-indigo-200">
+          <h1 className="text-xl font-bold text-gray-800 flex items-center gap-2 min-w-0">
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center text-white shadow-lg shadow-indigo-200 flex-shrink-0">
               <Folder size={22} />
             </div>
-            {current ? current.name : 'Proyectos'}
+            <span className="truncate">{current ? current.name : 'Proyectos'}</span>
+            {current && (
+              <button
+                type="button"
+                title="Eliminar este proyecto"
+                aria-label={`Eliminar proyecto ${current.name}`}
+                onClick={() => removeProject(current.name)}
+                className="p-2 rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50 border border-transparent hover:border-red-200 transition-colors flex-shrink-0"
+              >
+                <Trash2 size={20} />
+              </button>
+            )}
           </h1>
           <div className="flex items-center gap-2 flex-wrap justify-end">
             {!supabase && <span className="text-xs text-amber-600" title="Configura .env con VITE_SUPABASE_*">Solo local</span>}
@@ -552,7 +574,21 @@ export default function Proyectos() {
                             <p className="text-[10px] text-gray-500 mt-1">Objetivos: {op.pct}%</p>
                           )}
                         </div>
-                        <ChevronRight size={20} className="text-gray-400 flex-shrink-0" />
+                        <div className="flex items-center gap-1 flex-shrink-0">
+                          <button
+                            type="button"
+                            title="Eliminar proyecto"
+                            aria-label={`Eliminar proyecto ${proj.name}`}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              removeProject(proj.name);
+                            }}
+                            className="p-2 rounded-lg text-gray-400 hover:text-red-600 hover:bg-white/80 border border-transparent hover:border-red-200 transition-colors"
+                          >
+                            <Trash2 size={18} />
+                          </button>
+                          <ChevronRight size={20} className="text-gray-400" />
+                        </div>
                       </div>
                     </div>
                   );

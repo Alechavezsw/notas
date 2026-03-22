@@ -923,6 +923,22 @@ export default function App() {
     });
   }, []);
 
+  const deleteProject = useCallback((projName) => {
+    if (!window.confirm(`¿Eliminar el proyecto "${projName}"? Las notas de esta categoría pasarán a General.`)) return;
+    setNotes(prev => prev.map(n => (n.category === projName ? { ...n, category: 'General' } : n)));
+    const nextProjects = projectsRef.current.filter(p => p.name !== projName);
+    projectsRef.current = nextProjects;
+    setProjects(nextProjects);
+    setSelectedCategory(c => {
+      if (c !== projName) return c;
+      if (nextProjects.some(p => p.name === 'General')) return 'General';
+      if (nextProjects.length > 0) return nextProjects[0].name;
+      return 'Todas';
+    });
+    setDeletedProjectNames(prev => [...prev, projName]);
+    setEditingProjectTags(ed => (ed === projName ? null : ed));
+  }, []);
+
   const toggleTagFilter = (tag) => {
     setSelectedTags(prev => 
       prev.includes(tag) 
@@ -1170,7 +1186,8 @@ export default function App() {
                 <button onClick={() => { setSelectedCategory(proj.name); setViewMode('notes'); setActiveNoteId(null); }} className={`w-full flex items-center space-x-3 px-3 py-2 rounded-lg transition-colors text-sm font-medium ${viewMode === 'notes' && selectedCategory === proj.name ? 'bg-indigo-50 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300' : 'text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'}`}>
                   <div onClick={(e) => { e.stopPropagation(); cycleProjectColor(e, proj.name); }} className={`w-3 h-3 rounded-full flex-shrink-0 cursor-pointer hover:scale-125 transition-transform ${theme.dot}`}></div>
                   <span className="truncate flex-1 text-left">{proj.name}</span>
-                  <button onClick={(e) => { e.stopPropagation(); setEditingProjectTags(editingProjectTags === proj.name ? null : proj.name); }} className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-indigo-600 p-1 transition-opacity"><Tag size={14} /></button>
+                  <button type="button" onClick={(e) => { e.stopPropagation(); setEditingProjectTags(editingProjectTags === proj.name ? null : proj.name); }} className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-indigo-600 p-1 transition-opacity" aria-label="Etiquetas del proyecto"><Tag size={14} /></button>
+                  <button type="button" onClick={(e) => { e.stopPropagation(); deleteProject(proj.name); }} className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-red-500 p-1 transition-opacity" aria-label={`Eliminar proyecto ${proj.name}`} title="Eliminar proyecto"><Trash2 size={14} /></button>
                 </button>
                 {editingProjectTags === proj.name && (
                   <div className="px-3 py-2 bg-gray-50 border-l-2 border-indigo-200 ml-3 mb-1 rounded-r">
