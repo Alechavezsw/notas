@@ -9,6 +9,7 @@ import Proyectos from './pages/Proyectos.jsx'
 import Calendario from './pages/Calendario.jsx'
 import MapaMental from './pages/MapaMental.jsx'
 import Opportunity from './pages/Opportunity.jsx'
+import MisEmpresas from './pages/MisEmpresas.jsx'
 import AsistenteAI from './components/AsistenteAI'
 import './index.css'
 
@@ -24,6 +25,7 @@ ReactDOM.createRoot(document.getElementById('root')).render(
         <Route path="/calendario" element={<Calendario />} />
         <Route path="/mapa-mental" element={<MapaMental />} />
         <Route path="/opportunity" element={<Opportunity />} />
+        <Route path="/mis-empresas" element={<MisEmpresas />} />
       </Routes>
       <AsistenteAI />
     </BrowserRouter>

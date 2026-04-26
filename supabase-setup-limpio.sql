@@ -189,3 +189,25 @@ CREATE POLICY "Allow all operations on opportunity_data" ON opportunity_data FOR
 INSERT INTO opportunity_data (id, items)
 VALUES ('default', '[]'::jsonb)
 ON CONFLICT (id) DO NOTHING;
+
+-- ---------------------------------------------------------------------------
+-- mis_empresas_data (Mis empresas: items JSONB)
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS mis_empresas_data (
+  id TEXT PRIMARY KEY DEFAULT 'default',
+  items JSONB NOT NULL DEFAULT '[]'::jsonb,
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+DROP TRIGGER IF EXISTS update_mis_empresas_data_updated_at ON mis_empresas_data;
+CREATE TRIGGER update_mis_empresas_data_updated_at
+  BEFORE UPDATE ON mis_empresas_data
+  FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+ALTER TABLE mis_empresas_data ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Allow all operations on mis_empresas_data" ON mis_empresas_data;
+CREATE POLICY "Allow all operations on mis_empresas_data" ON mis_empresas_data FOR ALL USING (true) WITH CHECK (true);
+
+INSERT INTO mis_empresas_data (id, items)
+VALUES ('default', '[]'::jsonb)
+ON CONFLICT (id) DO NOTHING;

@@ -180,6 +180,39 @@ function formatOpportunityItems(items) {
   return lines.join('\n');
 }
 
+const EMP_STATUS_LABELS = {
+  operativa: 'Operativa',
+  formacion: 'En formación',
+  escala: 'Escalando',
+  pausada: 'Pausada',
+  venta: 'En venta / salida',
+  cerrada: 'Cerrada',
+};
+
+function formatMisEmpresasItems(items) {
+  if (!Array.isArray(items) || items.length === 0) return '### Mis empresas\n- Ninguna empresa registrada.';
+  const lines = ['### Mis empresas (fichas ampliadas)'];
+  items.slice(0, 15).forEach((e) => {
+    const name = e.tradeName || e.legalName || 'Sin nombre';
+    const legal = e.legalName && e.legalName !== e.tradeName ? ` · ${e.legalName}` : '';
+    const st = EMP_STATUS_LABELS[e.status] || e.status || '-';
+    lines.push(`- **${name}**${legal} · estado: ${st}`);
+    if (e.industry) lines.push(`  Rubro: ${String(e.industry).slice(0, 80)}`);
+    if (e.taxId) lines.push(`  ID fiscal: ${e.taxId}`);
+    if (e.tagline) lines.push(`  Línea: ${String(e.tagline).slice(0, 120)}`);
+    const notes = [e.notesGeneral, e.notesLegal, e.notesOps].filter(Boolean).join(' ');
+    const n = notes.replace(/\s+/g, ' ').trim();
+    if (n) lines.push(`  Notas (resumen): ${n.slice(0, 220)}${n.length > 220 ? '…' : ''}`);
+    const objs = Array.isArray(e.objectives) ? e.objectives : [];
+    const od = objs.filter((o) => o.done).length;
+    if (objs.length) lines.push(`  Objetivos: ${od}/${objs.length}`);
+    const na = Array.isArray(e.nextActions) ? e.nextActions : [];
+    na.slice(0, 4).forEach((a) => lines.push(`  · [${a.done ? 'x' : ' '}] ${(a.text || '').slice(0, 90)}`));
+  });
+  if (items.length > 15) lines.push(`- … y ${items.length - 15} empresas más`);
+  return lines.join('\n');
+}
+
 function fromLocalStorage() {
   const parts = [];
   try {
@@ -226,6 +259,13 @@ function fromLocalStorage() {
     if (o) {
       const j = JSON.parse(o);
       if (j?.items && Array.isArray(j.items)) parts.push(formatOpportunityItems(j.items));
+    }
+  } catch (_) {}
+  try {
+    const me = localStorage.getItem('alenotes_mis_empresas');
+    if (me) {
+      const j = JSON.parse(me);
+      if (j?.items && Array.isArray(j.items)) parts.push(formatMisEmpresasItems(j.items));
     }
   } catch (_) {}
   return parts.filter(Boolean).join('\n\n');
@@ -278,6 +318,11 @@ export async function buildAssistantContext() {
   try {
     const { data: opp } = await supabase.from('opportunity_data').select('items').eq('id', 'default').maybeSingle();
     if (opp?.items && Array.isArray(opp.items)) parts.push(formatOpportunityItems(opp.items));
+  } catch (_) {}
+
+  try {
+    const { data: emp } = await supabase.from('mis_empresas_data').select('items').eq('id', 'default').maybeSingle();
+    if (emp?.items && Array.isArray(emp.items)) parts.push(formatMisEmpresasItems(emp.items));
   } catch (_) {}
 
   let text = parts.filter(Boolean).join('\n\n');

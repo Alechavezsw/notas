@@ -7,7 +7,7 @@ import {
   FileText, Trello, CheckSquare, ChevronLeft, ChevronRight, Calendar,
   User, Image as ImageIcon, UploadCloud, Grid, Layers, Tag,
   Link as LinkIcon, ExternalLink, Book, Tv, Plane, Dumbbell, Wrench,
-  ShoppingCart, Heart, Map, AlertCircle, ListTodo, Loader2, Folder, Brain, Rocket,
+  ShoppingCart, Heart, Map, AlertCircle, ListTodo, Loader2, Folder, Brain, Rocket, Landmark,
   Bold, Underline, Italic, Strikethrough, List, Pin, PinOff, DollarSign,
   Moon, Sun, Download, Database, Upload
 } from 'lucide-react';
@@ -1168,6 +1168,7 @@ export default function App() {
           <Link to="/calendario" className="w-full flex items-center space-x-3 px-3 py-2 rounded-lg transition-colors text-sm font-medium text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 hover:text-indigo-600 dark:hover:text-indigo-400 group"><Calendar size={18} className="text-gray-400 dark:text-gray-500 group-hover:text-indigo-500" /><span>Calendario</span></Link>
           <Link to="/mapa-mental" className="w-full flex items-center space-x-3 px-3 py-2 rounded-lg transition-colors text-sm font-medium text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 hover:text-indigo-600 dark:hover:text-indigo-400 group"><Brain size={18} className="text-gray-400 dark:text-gray-500 group-hover:text-indigo-500" /><span>Mapa mental</span></Link>
           <Link to="/opportunity" className="w-full flex items-center space-x-3 px-3 py-2 rounded-lg transition-colors text-sm font-medium text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 hover:text-indigo-600 dark:hover:text-indigo-400 group"><Rocket size={18} className="text-gray-400 dark:text-gray-500 group-hover:text-indigo-500" /><span>Opportunity</span></Link>
+          <Link to="/mis-empresas" className="w-full flex items-center space-x-3 px-3 py-2 rounded-lg transition-colors text-sm font-medium text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 hover:text-indigo-600 dark:hover:text-indigo-400 group"><Landmark size={18} className="text-gray-400 dark:text-gray-500 group-hover:text-indigo-500" /><span>Mis empresas</span></Link>
           <a href="https://ale.cosechacreativa.com.ar/" target="_blank" rel="noopener noreferrer" className="w-full flex items-center space-x-3 px-3 py-2 rounded-lg transition-colors text-sm font-medium text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 hover:text-indigo-600 dark:hover:text-indigo-400 group"><LinkIcon size={18} className="text-gray-400 dark:text-gray-500 group-hover:text-indigo-500" /><span>Herramientas</span><ExternalLink size={12} className="opacity-0 group-hover:opacity-100 ml-auto" /></a>
           <div className="px-2 pt-2 mt-2 border-t border-gray-100 dark:border-gray-700">
             <div className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-2">Backup</div>
