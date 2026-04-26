@@ -29,11 +29,42 @@ const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
 const supabase = supabaseUrl && supabaseKey ? createClient(supabaseUrl, supabaseKey) : null;
 
 const KINDS = [
-  { id: 'trabajo', label: 'Trabajo', Icon: Briefcase, gradient: 'from-sky-500 to-blue-600', chip: 'bg-sky-500/15 text-sky-700 dark:text-sky-300 border-sky-400/40' },
-  { id: 'negocio', label: 'Negocio', Icon: Building2, gradient: 'from-violet-500 to-purple-600', chip: 'bg-violet-500/15 text-violet-700 dark:text-violet-300 border-violet-400/40' },
-  { id: 'freelance', label: 'Freelance', Icon: Zap, gradient: 'from-amber-500 to-orange-600', chip: 'bg-amber-500/15 text-amber-800 dark:text-amber-200 border-amber-400/40' },
-  { id: 'otro', label: 'Idea / otro', Icon: Sparkles, gradient: 'from-emerald-500 to-teal-600', chip: 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-400/40' },
+  { id: 'trabajo', label: 'Trabajo', Icon: Briefcase, chip: 'bg-sky-500/15 text-sky-700 dark:text-sky-300 border-sky-400/40' },
+  { id: 'negocio', label: 'Negocio', Icon: Building2, chip: 'bg-violet-500/15 text-violet-700 dark:text-violet-300 border-violet-400/40' },
+  { id: 'freelance', label: 'Freelance', Icon: Zap, chip: 'bg-amber-500/15 text-amber-800 dark:text-amber-200 border-amber-400/40' },
+  { id: 'otro', label: 'Idea / otro', Icon: Sparkles, chip: 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-400/40' },
 ];
+
+/** Color de la tarjeta (barra superior, icono, barra de progreso). Cada nueva oportunidad elige uno al azar. */
+const CARD_ACCENTS = [
+  { id: 'sky', gradient: 'from-sky-500 to-blue-600', progress: 'from-sky-400 to-cyan-300', targetDot: 'text-sky-400', stepHover: 'hover:border-sky-400/50 hover:bg-sky-500/10 hover:text-sky-100' },
+  { id: 'violet', gradient: 'from-violet-500 to-purple-600', progress: 'from-violet-400 to-fuchsia-400', targetDot: 'text-violet-400', stepHover: 'hover:border-violet-400/50 hover:bg-violet-500/10 hover:text-violet-100' },
+  { id: 'amber', gradient: 'from-amber-500 to-orange-600', progress: 'from-amber-400 to-rose-400', targetDot: 'text-amber-400', stepHover: 'hover:border-amber-400/50 hover:bg-amber-500/10 hover:text-amber-100' },
+  { id: 'emerald', gradient: 'from-emerald-500 to-teal-600', progress: 'from-emerald-400 to-cyan-400', targetDot: 'text-emerald-400', stepHover: 'hover:border-emerald-400/50 hover:bg-emerald-500/10 hover:text-emerald-100' },
+  { id: 'rose', gradient: 'from-rose-500 to-pink-600', progress: 'from-rose-400 to-orange-300', targetDot: 'text-rose-400', stepHover: 'hover:border-rose-400/50 hover:bg-rose-500/10 hover:text-rose-100' },
+  { id: 'cyan', gradient: 'from-cyan-500 to-blue-600', progress: 'from-cyan-300 to-blue-400', targetDot: 'text-cyan-400', stepHover: 'hover:border-cyan-400/50 hover:bg-cyan-500/10 hover:text-cyan-100' },
+  { id: 'lime', gradient: 'from-lime-500 to-green-600', progress: 'from-lime-400 to-emerald-400', targetDot: 'text-lime-400', stepHover: 'hover:border-lime-400/50 hover:bg-lime-500/10 hover:text-lime-100' },
+  { id: 'fuchsia', gradient: 'from-fuchsia-500 to-purple-700', progress: 'from-fuchsia-400 to-pink-400', targetDot: 'text-fuchsia-400', stepHover: 'hover:border-fuchsia-400/50 hover:bg-fuchsia-500/10 hover:text-fuchsia-100' },
+  { id: 'indigo', gradient: 'from-indigo-500 to-blue-700', progress: 'from-indigo-400 to-violet-400', targetDot: 'text-indigo-400', stepHover: 'hover:border-indigo-400/50 hover:bg-indigo-500/10 hover:text-indigo-100' },
+  { id: 'orange', gradient: 'from-orange-500 to-red-600', progress: 'from-orange-400 to-amber-300', targetDot: 'text-orange-400', stepHover: 'hover:border-orange-400/50 hover:bg-orange-500/10 hover:text-orange-100' },
+];
+
+function accentById(accentId) {
+  return CARD_ACCENTS.find((a) => a.id === accentId) || CARD_ACCENTS[0];
+}
+
+function randomAccentId() {
+  return CARD_ACCENTS[Math.floor(Math.random() * CARD_ACCENTS.length)].id;
+}
+
+/** Oportunidades viejas sin `accent`: color estable según id para que no cambien al recargar. */
+function resolveCardAccent(item) {
+  if (item.accent && CARD_ACCENTS.some((a) => a.id === item.accent)) return accentById(item.accent);
+  let h = 0;
+  const s = String(item.id || '');
+  for (let i = 0; i < s.length; i++) h = (h + s.charCodeAt(i) * (i + 1)) % 10007;
+  return CARD_ACCENTS[h % CARD_ACCENTS.length];
+}
 
 const STAGES = [
   { id: 'idea', label: 'Idea', color: 'bg-slate-400' },
@@ -58,6 +89,7 @@ function newItem() {
     title: '',
     kind: 'trabajo',
     stage: 'idea',
+    accent: randomAccentId(),
     companyOrClient: '',
     notes: '',
     link: '',
@@ -360,6 +392,7 @@ export default function Opportunity() {
             {filtered.map((it) => {
               const k = kindMeta(it.kind);
               const KIcon = k.Icon;
+              const cardAccent = resolveCardAccent(it);
               const st = stageMeta(it.stage);
               const actions = it.nextActions || [];
               const doneCount = actions.filter((a) => a.done).length;
@@ -371,13 +404,13 @@ export default function Opportunity() {
                   className="group relative rounded-3xl border border-white/10 bg-gradient-to-b from-white/[0.07] to-white/[0.02] p-5 sm:p-6 shadow-xl overflow-hidden"
                 >
                   <div
-                    className={`absolute inset-x-0 top-0 h-1 bg-gradient-to-r ${k.gradient} opacity-90`}
+                    className={`absolute inset-x-0 top-0 h-1 bg-gradient-to-r ${cardAccent.gradient} opacity-90`}
                     aria-hidden
                   />
                   <div className="flex items-start justify-between gap-3 mb-4">
                     <div className="flex items-center gap-3 min-w-0">
                       <div
-                        className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br ${k.gradient} shadow-lg`}
+                        className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br ${cardAccent.gradient} shadow-lg ring-2 ring-white/10`}
                       >
                         <KIcon size={22} className="text-white" />
                       </div>
@@ -387,7 +420,7 @@ export default function Opportunity() {
                           value={it.title}
                           onChange={(e) => patchItem(it.id, { title: e.target.value })}
                           placeholder="Título de la oportunidad"
-                          className="w-full bg-transparent text-lg font-bold text-white placeholder-gray-500 focus:outline-none border-b border-transparent focus:border-fuchsia-500/50 pb-1"
+                          className="w-full bg-transparent text-lg font-bold text-white placeholder-gray-500 focus:outline-none border-b border-transparent focus:border-white/30 pb-1"
                         />
                         <input
                           type="text"
@@ -473,7 +506,7 @@ export default function Opportunity() {
                   <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
                     <div className="flex items-center justify-between mb-3">
                       <span className="text-xs font-semibold uppercase tracking-wider text-gray-500 flex items-center gap-2">
-                        <Target size={14} className="text-fuchsia-400" />
+                        <Target size={14} className={cardAccent.targetDot} />
                         Próximos pasos
                       </span>
                       {actions.length > 0 && (
@@ -485,7 +518,7 @@ export default function Opportunity() {
                     {actions.length > 0 && (
                       <div className="h-1.5 rounded-full bg-white/10 mb-3 overflow-hidden">
                         <div
-                          className="h-full rounded-full bg-gradient-to-r from-fuchsia-500 to-cyan-400 transition-all duration-500"
+                          className={`h-full rounded-full bg-gradient-to-r ${cardAccent.progress} transition-all duration-500`}
                           style={{ width: `${pct}%` }}
                         />
                       </div>
@@ -528,7 +561,7 @@ export default function Opportunity() {
                     <button
                       type="button"
                       onClick={() => addNextAction(it.id)}
-                      className="mt-3 w-full py-2 rounded-xl border border-dashed border-white/20 text-xs font-medium text-gray-400 hover:text-white hover:border-fuchsia-400/50 hover:bg-fuchsia-500/5 transition-colors flex items-center justify-center gap-2"
+                      className={`mt-3 w-full py-2 rounded-xl border border-dashed border-white/20 text-xs font-medium text-gray-400 transition-colors flex items-center justify-center gap-2 ${cardAccent.stepHover}`}
                     >
                       <Plus size={14} />
                       Añadir paso
