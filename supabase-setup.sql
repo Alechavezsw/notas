@@ -33,7 +33,8 @@ BEGIN
 END;
 $$ language 'plpgsql';
 
--- Trigger para actualizar updated_at en notes
+-- Trigger para actualizar updated_at en notes (idempotente si volvés a correr el script)
+DROP TRIGGER IF EXISTS update_notes_updated_at ON notes;
 CREATE TRIGGER update_notes_updated_at BEFORE UPDATE ON notes
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
@@ -141,6 +142,7 @@ CREATE TABLE IF NOT EXISTS billetera (
 );
 
 -- Trigger para actualizar updated_at en billetera
+DROP TRIGGER IF EXISTS update_billetera_updated_at ON billetera;
 CREATE TRIGGER update_billetera_updated_at BEFORE UPDATE ON billetera
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
@@ -194,14 +196,18 @@ BEGIN
     END IF;
 END $$;
 
--- Tabla salud (registros por día: peso, vasos_agua, horas_sueno, animo)
--- id = 'default', registros = jsonb con clave fecha 'YYYY-MM-DD' y valor { peso, vasosAgua, horasSueno, animo }
+-- Tabla salud: una fila id='default', todo el historial en JSONB (no hace falta migrar columnas al agregar campos).
+-- registros: objeto con clave fecha 'YYYY-MM-DD' y valor por día, por ejemplo:
+--   peso (number), vasosAgua (number), horasSueno (number), animo (1-5),
+--   pasosSalud (object): higado, colesterol, corazon, peso, dentadura, acne, vista, estres → boolean,
+--   pasosSaludOtros (string): texto libre (tiroides, medicación, etc.)
 CREATE TABLE IF NOT EXISTS salud (
   id TEXT PRIMARY KEY DEFAULT 'default',
   registros JSONB NOT NULL DEFAULT '{}'::jsonb,
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
+DROP TRIGGER IF EXISTS update_salud_updated_at ON salud;
 CREATE TRIGGER update_salud_updated_at BEFORE UPDATE ON salud
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
@@ -224,6 +230,7 @@ CREATE TABLE IF NOT EXISTS mind_maps (
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
+DROP TRIGGER IF EXISTS update_mind_maps_updated_at ON mind_maps;
 CREATE TRIGGER update_mind_maps_updated_at BEFORE UPDATE ON mind_maps
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
@@ -243,4 +250,25 @@ BEGIN
         ALTER TABLE mind_maps ADD COLUMN created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW();
     END IF;
 END $$;
+
+-- Opportunity: una fila id='default', items = array de oportunidades (trabajo/negocio, etapas, notas, próximos pasos)
+CREATE TABLE IF NOT EXISTS opportunity_data (
+  id TEXT PRIMARY KEY DEFAULT 'default',
+  items JSONB NOT NULL DEFAULT '[]'::jsonb,
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+DROP TRIGGER IF EXISTS update_opportunity_data_updated_at ON opportunity_data;
+CREATE TRIGGER update_opportunity_data_updated_at BEFORE UPDATE ON opportunity_data
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+ALTER TABLE opportunity_data ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Allow all operations on opportunity_data" ON opportunity_data;
+CREATE POLICY "Allow all operations on opportunity_data" ON opportunity_data
+    FOR ALL USING (true) WITH CHECK (true);
+
+INSERT INTO opportunity_data (id, items)
+VALUES ('default', '[]'::jsonb)
+ON CONFLICT (id) DO NOTHING;
 

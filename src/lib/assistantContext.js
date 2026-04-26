@@ -99,15 +99,40 @@ function formatNotes(list) {
   return lines.join('\n');
 }
 
+const PASOS_SALUD_LABELS = {
+  higado: 'Hígado',
+  colesterol: 'Colesterol',
+  corazon: 'Corazón',
+  peso: 'Peso',
+  dentadura: 'Dentadura',
+  acne: 'Acné',
+  vista: 'Vista',
+  estres: 'Estrés',
+};
+
+function formatPasosSaludLine(r) {
+  if (!r || typeof r !== 'object') return '';
+  const p = r.pasosSalud;
+  const parts = [];
+  if (p && typeof p === 'object') {
+    const done = Object.keys(PASOS_SALUD_LABELS)
+      .filter((k) => p[k])
+      .map((k) => PASOS_SALUD_LABELS[k]);
+    if (done.length) parts.push(`pasos: ${done.join(', ')}`);
+  }
+  const otros = typeof r.pasosSaludOtros === 'string' ? r.pasosSaludOtros.trim() : '';
+  if (otros) parts.push(`otros: ${otros.length > 120 ? `${otros.slice(0, 120)}…` : otros}`);
+  return parts.length ? ` · ${parts.join(' · ')}` : '';
+}
+
 function formatSalud(row) {
   if (!row?.registros || typeof row.registros !== 'object') return '### Salud\n- Sin registros.';
   const entries = Object.entries(row.registros).sort(([a], [b]) => b.localeCompare(a));
   const lines = ['### Salud (últimos días con datos)'];
   entries.slice(0, 14).forEach(([fecha, r]) => {
     if (!r || typeof r !== 'object') return;
-    lines.push(
-      `- ${fecha}: peso ${r.peso ?? '-'} · agua ${r.vasosAgua ?? r.vasos_agua ?? '-'} · sueño ${r.horasSueno ?? r.horas_sueno ?? '-'}h · ánimo ${r.animo ?? '-'}`
-    );
+    const base = `- ${fecha}: peso ${r.peso ?? '-'} · agua ${r.vasosAgua ?? r.vasos_agua ?? '-'} · sueño ${r.horasSueno ?? r.horas_sueno ?? '-'}h · ánimo ${r.animo ?? '-'}`;
+    lines.push(`${base}${formatPasosSaludLine(r)}`);
   });
   return lines.join('\n');
 }
@@ -115,6 +140,44 @@ function formatSalud(row) {
 function formatMindMaps(list) {
   if (!Array.isArray(list) || list.length === 0) return '### Mapas mentales\n- Ninguno.';
   return `### Mapas mentales\n${list.map((m) => `- ${m.name || 'Sin título'}`).join('\n')}`;
+}
+
+const OP_STAGE_LABELS = {
+  idea: 'Idea',
+  contacto: 'Contacto',
+  propuesta: 'Propuesta',
+  negociacion: 'Negociación',
+  ganada: 'Ganada',
+  archivada: 'Archivo',
+};
+
+const OP_KIND_LABELS = {
+  trabajo: 'Trabajo',
+  negocio: 'Negocio',
+  freelance: 'Freelance',
+  otro: 'Idea/otro',
+};
+
+function formatOpportunityItems(items) {
+  if (!Array.isArray(items) || items.length === 0) return '### Opportunity\n- Ninguna oportunidad registrada.';
+  const lines = ['### Opportunity (oportunidades de trabajo y negocio)'];
+  items.slice(0, 25).forEach((it) => {
+    const title = it.title || 'Sin título';
+    const kind = OP_KIND_LABELS[it.kind] || it.kind || '-';
+    const stage = OP_STAGE_LABELS[it.stage] || it.stage || '-';
+    const who = it.companyOrClient ? ` · ${it.companyOrClient}` : '';
+    lines.push(`- **${title}** [${kind}] · etapa: ${stage}${who}`);
+    const notes = typeof it.notes === 'string' ? it.notes.replace(/\s+/g, ' ').trim() : '';
+    if (notes) lines.push(`  Notas: ${notes.slice(0, 200)}${notes.length > 200 ? '…' : ''}`);
+    if (it.link) lines.push(`  Enlace: ${String(it.link).slice(0, 120)}`);
+    if (it.valueHint) lines.push(`  Valor/condiciones: ${String(it.valueHint).slice(0, 120)}`);
+    const actions = Array.isArray(it.nextActions) ? it.nextActions : [];
+    actions.slice(0, 6).forEach((a) => {
+      lines.push(`  · [${a.done ? 'x' : ' '}] ${(a.text || '').slice(0, 100)}`);
+    });
+  });
+  if (items.length > 25) lines.push(`- … y ${items.length - 25} más`);
+  return lines.join('\n');
 }
 
 function fromLocalStorage() {
@@ -156,6 +219,13 @@ function fromLocalStorage() {
       const j = JSON.parse(m);
       const maps = Array.isArray(j.maps) ? j.maps.map((x) => ({ name: x.name })) : [];
       parts.push(formatMindMaps(maps));
+    }
+  } catch (_) {}
+  try {
+    const o = localStorage.getItem('alenotes_opportunity');
+    if (o) {
+      const j = JSON.parse(o);
+      if (j?.items && Array.isArray(j.items)) parts.push(formatOpportunityItems(j.items));
     }
   } catch (_) {}
   return parts.filter(Boolean).join('\n\n');
@@ -203,6 +273,11 @@ export async function buildAssistantContext() {
   try {
     const { data: maps } = await supabase.from('mind_maps').select('id, name').limit(20);
     if (maps?.length) parts.push(formatMindMaps(maps));
+  } catch (_) {}
+
+  try {
+    const { data: opp } = await supabase.from('opportunity_data').select('items').eq('id', 'default').maybeSingle();
+    if (opp?.items && Array.isArray(opp.items)) parts.push(formatOpportunityItems(opp.items));
   } catch (_) {}
 
   let text = parts.filter(Boolean).join('\n\n');
