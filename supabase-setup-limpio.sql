@@ -1,4 +1,17 @@
 -- Supabase SQL Editor: pegá y ejecutá todo de una vez. Re-ejecutable (IF NOT EXISTS, DROP TRIGGER/POLICY).
+--
+-- Tablas: projects, notes, billetera, salud, mind_maps, opportunity_data,
+--         mis_empresas_data, entradas_data
+--
+-- billetera (id = 'default'), columnas JSONB:
+--   cantidades      → { meta: number } meta de ahorro
+--   dinero_actual   → [{ id, concepto, monto, fecha?, categoria? }]
+--   a_cobrar        → [{ id, concepto, monto, fecha?, cobrado?, montoAcreditado?, fechaCobro? }]
+--   gastos          → [{ id, fecha, concepto, categoria, monto }]
+--   deudas          → [{ id, etiqueta, acreedor, concepto, monto, pagado, enCuotas, mes, ... }]
+--   deudores        → [{ id, nombre, concepto, monto, fecha }]
+--   objetivos_compra→ [{ id, objetivo, monto, ahorrado, prioridad, fechaObjetivo, comprado, notas }]
+-- entradas_data: cards + columns (kanban Entradas)
 
 -- ---------------------------------------------------------------------------
 -- projects
@@ -100,6 +113,9 @@ BEGIN
   END IF;
   IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'billetera' AND column_name = 'deudores') THEN
     ALTER TABLE billetera ADD COLUMN deudores JSONB NOT NULL DEFAULT '[]'::jsonb;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'billetera' AND column_name = 'objetivos_compra') THEN
+    ALTER TABLE billetera ADD COLUMN objetivos_compra JSONB NOT NULL DEFAULT '[]'::jsonb;
   END IF;
 END $$;
 

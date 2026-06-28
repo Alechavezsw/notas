@@ -196,6 +196,17 @@ BEGIN
     END IF;
 END $$;
 
+-- Migración: objetivos de compra (metas de ahorro para compras)
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'billetera' AND column_name = 'objetivos_compra'
+    ) THEN
+        ALTER TABLE billetera ADD COLUMN objetivos_compra JSONB NOT NULL DEFAULT '[]'::jsonb;
+    END IF;
+END $$;
+
 -- Tabla salud: una fila id='default', todo el historial en JSONB (no hace falta migrar columnas al agregar campos).
 -- registros: objeto con clave fecha 'YYYY-MM-DD' y valor por día, por ejemplo:
 --   peso (number), vasosAgua (number), horasSueno (number), animo (1-5),
@@ -318,7 +329,6 @@ DROP POLICY IF EXISTS "Allow all operations on entradas_data" ON entradas_data;
 CREATE POLICY "Allow all operations on entradas_data" ON entradas_data
     FOR ALL USING (true) WITH CHECK (true);
 
-INSERT INTO entradas_data (id, cards)
-VALUES ('default', '[]'::jsonb)
+INSERT INTO entradas_data (id, cards, columns)
+VALUES ('default', '[]'::jsonb, '[]'::jsonb)
 ON CONFLICT (id) DO NOTHING;
-

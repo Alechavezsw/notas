@@ -20,6 +20,7 @@ function formatBilleteraRow(row) {
   const gastos = Array.isArray(row.gastos) ? row.gastos : [];
   const deudas = Array.isArray(row.deudas) ? row.deudas : [];
   const deudores = Array.isArray(row.deudores) ? row.deudores : [];
+  const objetivos = Array.isArray(row.objetivos_compra) ? row.objetivos_compra : [];
   const meta = row.cantidades && typeof row.cantidades === 'object' ? row.cantidades.meta : null;
 
   lines.push(`- Dinero actual (suma): $${Math.round(sumMontos(da))} (${da.length} ítems)`);
@@ -54,6 +55,24 @@ function formatBilleteraRow(row) {
       lines.push(`  · ${d.nombre || '?'} | ${d.concepto || ''} | $${Number(d.monto) || 0}`);
     });
     lines.push(`- Total que te deben: $${Math.round(sumMontos(deudores))}`);
+  }
+  if (objetivos.length) {
+    const pendientes = objetivos.filter((o) => !o.comprado);
+    lines.push('- Objetivos de compra:');
+    pendientes.slice(0, 20).forEach((o) => {
+      const meta = Number(o.monto) || 0;
+      const ahorrado = Number(o.ahorrado) || 0;
+      const pct = meta > 0 ? Math.round((ahorrado / meta) * 100) : 0;
+      lines.push(
+        `  · ${o.prioridad ? `[${o.prioridad}] ` : ''}${o.objetivo || 'Sin nombre'} | meta $${meta} | ahorrado $${ahorrado} (${pct}%) | fecha ${o.fechaObjetivo || '-'}${o.notas ? ` | ${String(o.notas).slice(0, 60)}` : ''}`
+      );
+    });
+    const faltante = pendientes.reduce((s, o) => {
+      const meta = Number(o.monto) || 0;
+      const ahorrado = Number(o.ahorrado) || 0;
+      return s + Math.max(0, meta - ahorrado);
+    }, 0);
+    lines.push(`- Objetivos pendientes: ${pendientes.length} | Faltan $${Math.round(faltante)}`);
   }
   return lines.join('\n');
 }
@@ -266,6 +285,7 @@ function fromLocalStorage() {
         gastos: j.gastos,
         deudas: j.deudas,
         deudores: j.deudores,
+        objetivos_compra: j.objetivosCompra,
         cantidades: { meta: j.metaAhorro },
       };
       parts.push(formatBilleteraRow(row));

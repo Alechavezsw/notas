@@ -32,6 +32,7 @@ import {
   Search,
   AlertTriangle,
   ChevronDown,
+  ShoppingBag,
 } from 'lucide-react';
 
 const STORAGE_KEY = 'alenotes_billetera';
@@ -42,6 +43,7 @@ const DEFAULT_SECTIONS_OPEN = {
   deudores: true,
   actual: true,
   aCobrar: true,
+  objetivos: true,
 };
 
 function loadSectionsOpen() {
@@ -111,6 +113,88 @@ function sumMontos(items) {
   return items.reduce((sum, it) => sum + (Number(it.monto) || 0), 0);
 }
 
+function deudasMesCorriente(items, mesActual) {
+  return items.filter((item) => {
+    const key = item.enCuotas && item.mes ? item.mes : '_unico';
+    return key === mesActual || key === '_unico';
+  });
+}
+
+function labelDeuda(item) {
+  const parts = [item.acreedor, item.concepto].filter(Boolean);
+  return parts.length ? parts.join(' — ') : 'Deuda';
+}
+
+function descontarDeCuenta(prev, monto, label) {
+  const amount = Number(monto) || 0;
+  if (amount <= 0) return prev;
+  let remaining = amount;
+  const next = prev.map((it) => ({ ...it }));
+  const order = [...next.keys()].sort(
+    (a, b) => (Number(next[b].monto) || 0) - (Number(next[a].monto) || 0)
+  );
+  for (const i of order) {
+    const cur = Number(next[i].monto) || 0;
+    if (cur <= 0) continue;
+    const take = Math.min(cur, remaining);
+    const resto = cur - take;
+    next[i] = { ...next[i], monto: resto === 0 ? '' : String(resto) };
+    remaining -= take;
+    if (remaining <= 0) break;
+  }
+  if (remaining > 0) {
+    next.push({
+      id: Date.now(),
+      concepto: `Déficit pago deuda: ${label}`,
+      monto: String(-remaining),
+      fecha: new Date().toISOString().slice(0, 10),
+      categoria: 'Otro',
+    });
+  }
+  return next;
+}
+
+function reintegrarCuenta(prev, monto, label) {
+  const amount = Number(monto) || 0;
+  if (amount <= 0) return prev;
+  return [
+    ...prev,
+    {
+      id: Date.now(),
+      concepto: `Reintegro deuda: ${label}`,
+      monto: String(amount),
+      fecha: new Date().toISOString().slice(0, 10),
+      categoria: 'Otro',
+    },
+  ];
+}
+
+function aCobrarMesCorriente(items, mesActual) {
+  return items.filter((item) => {
+    if (!item.fecha) return true;
+    return item.fecha.slice(0, 7) === mesActual;
+  });
+}
+
+function labelACobrar(item) {
+  return item.concepto?.trim() || 'Cobro';
+}
+
+function acreditarEnCuenta(prev, monto, label) {
+  const amount = Number(monto) || 0;
+  if (amount <= 0) return prev;
+  return [
+    ...prev,
+    {
+      id: Date.now(),
+      concepto: `Cobro: ${label}`,
+      monto: String(amount),
+      fecha: new Date().toISOString().slice(0, 10),
+      categoria: 'Otro',
+    },
+  ];
+}
+
 function formatMoney(num) {
   return new Intl.NumberFormat('es-AR', {
     style: 'decimal',
@@ -132,9 +216,22 @@ function EntradaLista({
   extraFieldFirst = false,
   withVencimiento = false,
   focusRing = 'emerald',
+  onToggleCobrado = null,
 }) {
-  const ring = focusRing === 'slate' ? 'focus:ring-slate-200' : focusRing === 'teal' ? 'focus:ring-teal-200' : 'focus:ring-emerald-200';
-  const ringBorder = focusRing === 'slate' ? 'focus:border-slate-300' : focusRing === 'teal' ? 'focus:border-teal-300' : 'focus:border-emerald-300';
+  const ring = focusRing === 'slate'
+    ? 'focus:ring-slate-200'
+    : focusRing === 'teal'
+      ? 'focus:ring-teal-200'
+      : focusRing === 'amber'
+        ? 'focus:ring-amber-200'
+        : 'focus:ring-emerald-200';
+  const ringBorder = focusRing === 'slate'
+    ? 'focus:border-slate-300'
+    : focusRing === 'teal'
+      ? 'focus:border-teal-300'
+      : focusRing === 'amber'
+        ? 'focus:border-amber-300'
+        : 'focus:border-emerald-300';
   const extraInputClass = `flex-1 min-w-[120px] max-w-[200px] px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 ${ring} ${ringBorder}`;
 
   return (
@@ -145,8 +242,26 @@ function EntradaLista({
         items.map((item) => (
           <div
             key={item.id}
-            className="flex flex-wrap items-center gap-2 p-3 rounded-xl bg-white/80 hover:bg-white border border-gray-100 transition-all"
+            className={`flex flex-wrap items-center gap-2 p-3 rounded-xl border transition-all ${
+              item.cobrado
+                ? 'opacity-60 bg-gray-50/80 border-gray-100'
+                : 'bg-white/80 hover:bg-white border-gray-100'
+            }`}
           >
+            {onToggleCobrado && (
+              <button
+                type="button"
+                onClick={() => onToggleCobrado(item.id, !item.cobrado)}
+                className={`p-2 rounded-lg border transition-colors shrink-0 ${
+                  item.cobrado
+                    ? 'bg-amber-100 border-amber-300 text-amber-700'
+                    : 'border-gray-200 text-gray-400 hover:border-amber-300 hover:text-amber-600 hover:bg-amber-50'
+                }`}
+                title={item.cobrado ? 'Marcar pendiente' : 'Marcar cobrado'}
+              >
+                <Check size={16} />
+              </button>
+            )}
             {withCategory && (
               <select
                 value={item.categoria || ''}
@@ -173,7 +288,9 @@ function EntradaLista({
               placeholder="Concepto"
               value={item.concepto || ''}
               onChange={(e) => onUpdate(item.id, 'concepto', e.target.value)}
-              className={`flex-1 min-w-[100px] px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 ${ring} ${ringBorder}`}
+              className={`flex-1 min-w-[100px] px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 ${ring} ${ringBorder} ${
+                item.cobrado ? 'line-through text-gray-500' : ''
+              }`}
             />
             {extraField && !extraFieldFirst && (
               <input
@@ -240,6 +357,101 @@ function EntradaLista({
   );
 }
 
+function ChecklistCobradoMesCorriente({ items, mesActual, onToggleCobrado }) {
+  const delMes = useMemo(() => aCobrarMesCorriente(items, mesActual), [items, mesActual]);
+  const pendientes = delMes.filter((it) => !it.cobrado);
+  const cobrados = delMes.filter((it) => it.cobrado);
+  const totalPendiente = sumMontos(pendientes);
+  const totalCobrado = sumMontos(cobrados);
+
+  if (delMes.length === 0) return null;
+
+  return (
+    <div className="rounded-xl border border-amber-200 bg-amber-50/40 p-4 space-y-3 mb-4">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div>
+          <h3 className="text-sm font-semibold text-amber-900">
+            Cobrado mes corriente
+          </h3>
+          <p className="text-xs text-amber-700/80">
+            {formatMesLabel(mesActual)} · al marcar cobrado se suma a Dinero actual
+          </p>
+        </div>
+        <div className="text-right text-xs tabular-nums">
+          <p className="font-bold text-amber-800">
+            {cobrados.length}/{delMes.length} cobrados
+          </p>
+          {totalPendiente > 0 && (
+            <p className="text-amber-700 font-medium">Pendiente: ${formatMoney(totalPendiente)}</p>
+          )}
+          {totalCobrado > 0 && (
+            <p className="text-emerald-600">Cobrado: ${formatMoney(totalCobrado)}</p>
+          )}
+        </div>
+      </div>
+      <div className="space-y-1.5 max-h-64 overflow-y-auto">
+        {delMes.map((item) => {
+          const monto = Number(item.monto) || 0;
+          return (
+            <label
+              key={item.id}
+              className={`flex items-center gap-3 px-3 py-2.5 rounded-lg border cursor-pointer transition-colors ${
+                item.cobrado
+                  ? 'bg-white/60 border-amber-200 opacity-75'
+                  : 'bg-white border-gray-200 hover:border-amber-300 hover:bg-white'
+              }`}
+            >
+              <input
+                type="checkbox"
+                checked={!!item.cobrado}
+                onChange={(e) => onToggleCobrado(item.id, e.target.checked)}
+                className="rounded border-gray-300 text-amber-600 focus:ring-amber-400 w-4 h-4 shrink-0"
+              />
+              <span className={`flex-1 min-w-0 text-sm ${item.cobrado ? 'line-through text-gray-500' : 'text-gray-800'}`}>
+                {labelACobrar(item)}
+                {item.fecha && (
+                  <span className="text-gray-400 ml-2 text-xs">
+                    {new Date(`${item.fecha}T12:00:00`).toLocaleDateString('es-AR', { day: 'numeric', month: 'short' })}
+                  </span>
+                )}
+              </span>
+              <span className={`text-sm font-bold tabular-nums shrink-0 ${item.cobrado ? 'text-gray-400' : 'text-amber-700'}`}>
+                ${formatMoney(monto)}
+              </span>
+            </label>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function ListaACobrar({ items, onAdd, onUpdate, onDelete, onToggleCobrado }) {
+  const mesActual = getMesActual();
+  return (
+    <div className="space-y-4">
+      {onToggleCobrado && (
+        <ChecklistCobradoMesCorriente
+          items={items}
+          mesActual={mesActual}
+          onToggleCobrado={onToggleCobrado}
+        />
+      )}
+      <EntradaLista
+        items={items}
+        onAdd={onAdd}
+        onUpdate={onUpdate}
+        onDelete={onDelete}
+        onToggleCobrado={onToggleCobrado}
+        emptyMessage="No hay expectativas de cobro. Agregá conceptos y montos que esperás cobrar."
+        addLabel="Agregar expectativa"
+        withDate={true}
+        focusRing="amber"
+      />
+    </div>
+  );
+}
+
 function BilleteraSection({ open, onToggle, headerClassName, sectionClassName = 'mb-6', left, right, children }) {
   return (
     <section className={`rounded-2xl bg-white/90 backdrop-blur border border-gray-200/60 shadow-lg shadow-gray-100 overflow-hidden ${sectionClassName}`}>
@@ -264,7 +476,81 @@ function BilleteraSection({ open, onToggle, headerClassName, sectionClassName = 
   );
 }
 
-function ListaDeudas({ items, onAdd, onUpdate, onDelete, onDuplicateNextMonth }) {
+function ChecklistMesCorriente({ items, mesActual, onTogglePagado }) {
+  const delMes = useMemo(() => deudasMesCorriente(items, mesActual), [items, mesActual]);
+  const pendientes = delMes.filter((it) => !it.pagado);
+  const pagadas = delMes.filter((it) => it.pagado);
+  const totalPendiente = sumMontos(pendientes);
+  const totalPagado = sumMontos(pagadas);
+
+  if (delMes.length === 0) return null;
+
+  return (
+    <div className="rounded-xl border border-emerald-200 bg-emerald-50/40 p-4 space-y-3">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div>
+          <h3 className="text-sm font-semibold text-emerald-900">
+            Pagado mes corriente
+          </h3>
+          <p className="text-xs text-emerald-700/80">
+            {formatMesLabel(mesActual)} · al marcar pagada se descuenta de Dinero actual
+          </p>
+        </div>
+        <div className="text-right text-xs tabular-nums">
+          <p className="font-bold text-emerald-800">
+            {pagadas.length}/{delMes.length} pagadas
+          </p>
+          {totalPendiente > 0 && (
+            <p className="text-amber-700 font-medium">Pendiente: ${formatMoney(totalPendiente)}</p>
+          )}
+          {totalPagado > 0 && (
+            <p className="text-emerald-600">Pagado: ${formatMoney(totalPagado)}</p>
+          )}
+        </div>
+      </div>
+      <div className="space-y-1.5 max-h-64 overflow-y-auto">
+        {delMes.map((item) => {
+          const monto = Number(item.monto) || 0;
+          return (
+            <label
+              key={item.id}
+              className={`flex items-center gap-3 px-3 py-2.5 rounded-lg border cursor-pointer transition-colors ${
+                item.pagado
+                  ? 'bg-white/60 border-emerald-200 opacity-75'
+                  : 'bg-white border-gray-200 hover:border-emerald-300 hover:bg-white'
+              }`}
+            >
+              <input
+                type="checkbox"
+                checked={!!item.pagado}
+                onChange={(e) => onTogglePagado(item.id, e.target.checked)}
+                className="rounded border-gray-300 text-emerald-600 focus:ring-emerald-400 w-4 h-4 shrink-0"
+              />
+              <span className={`flex-1 min-w-0 text-sm ${item.pagado ? 'line-through text-gray-500' : 'text-gray-800'}`}>
+                {item.etiqueta && (
+                  <span className="text-[10px] font-medium uppercase tracking-wide text-slate-500 mr-2">
+                    {item.etiqueta}
+                  </span>
+                )}
+                {labelDeuda(item)}
+                {item.enCuotas && item.cuotaNum && item.cuotasTotal && (
+                  <span className="text-gray-400 ml-1">
+                    (cuota {item.cuotaNum}/{item.cuotasTotal})
+                  </span>
+                )}
+              </span>
+              <span className={`text-sm font-bold tabular-nums shrink-0 ${item.pagado ? 'text-gray-400' : 'text-slate-700'}`}>
+                ${formatMoney(monto)}
+              </span>
+            </label>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function ListaDeudas({ items, onAdd, onUpdate, onDelete, onDuplicateNextMonth, onTogglePagado }) {
   const mesActual = getMesActual();
   const [filtroMes, setFiltroMes] = useState('todos');
   const [filtroEtiqueta, setFiltroEtiqueta] = useState('');
@@ -349,7 +635,7 @@ function ListaDeudas({ items, onAdd, onUpdate, onDelete, onDuplicateNextMonth })
         <div className="flex flex-wrap items-center gap-2 p-3">
           <button
             type="button"
-            onClick={() => onUpdate(item.id, 'pagado', !item.pagado)}
+            onClick={() => (onTogglePagado ? onTogglePagado(item.id, !item.pagado) : onUpdate(item.id, 'pagado', !item.pagado))}
             className={`p-2 rounded-lg border transition-colors shrink-0 ${
               item.pagado
                 ? 'bg-emerald-100 border-emerald-300 text-emerald-700'
@@ -562,6 +848,14 @@ function ListaDeudas({ items, onAdd, onUpdate, onDelete, onDuplicateNextMonth })
         </select>
       </div>
 
+      {onTogglePagado && (
+        <ChecklistMesCorriente
+          items={items}
+          mesActual={mesActual}
+          onTogglePagado={onTogglePagado}
+        />
+      )}
+
       {resumenEtiquetas.length > 0 && (
         <div className="flex flex-wrap gap-2">
           {resumenEtiquetas.map(([etiqueta, total]) => {
@@ -632,6 +926,7 @@ export default function ContadorDinero() {
   const [gastos, setGastos] = useState([]);
   const [deudas, setDeudas] = useState([]);
   const [deudores, setDeudores] = useState([]);
+  const [objetivosCompra, setObjetivosCompra] = useState([]);
   const [metaAhorro, setMetaAhorro] = useState(null);
   const cantidadesRef = useRef({});
   const [isLoading, setIsLoading] = useState(!!supabase);
@@ -657,7 +952,11 @@ export default function ContadorDinero() {
     [dineroActual]
   );
   const totalACobrar = useMemo(
-    () => aCobrar.reduce((sum, it) => sum + (Number(it.monto) || 0), 0),
+    () => sumMontos(aCobrar.filter((it) => !it.cobrado)),
+    [aCobrar]
+  );
+  const totalACobrarCobrado = useMemo(
+    () => sumMontos(aCobrar.filter((it) => it.cobrado)),
     [aCobrar]
   );
   const totalProyectado = totalActual + totalACobrar;
@@ -690,6 +989,27 @@ export default function ContadorDinero() {
     () => deudores.reduce((sum, it) => sum + (Number(it.monto) || 0), 0),
     [deudores]
   );
+  const objetivosPendientes = useMemo(
+    () => objetivosCompra.filter((o) => !o.comprado),
+    [objetivosCompra]
+  );
+  const totalObjetivosMeta = useMemo(
+    () => sumMontos(objetivosPendientes),
+    [objetivosPendientes]
+  );
+  const totalObjetivosAhorrado = useMemo(
+    () => objetivosPendientes.reduce((sum, it) => sum + (Number(it.ahorrado) || 0), 0),
+    [objetivosPendientes]
+  );
+  const totalObjetivosFaltante = useMemo(
+    () =>
+      objetivosPendientes.reduce((sum, it) => {
+        const meta = Number(it.monto) || 0;
+        const ahorrado = Number(it.ahorrado) || 0;
+        return sum + Math.max(0, meta - ahorrado);
+      }, 0),
+    [objetivosPendientes]
+  );
 
   const chartPieData = useMemo(() => {
     if (totalActual === 0 && totalACobrar === 0) return [{ name: 'Sin datos', value: 1, fill: '#e5e7eb' }];
@@ -702,7 +1022,7 @@ export default function ContadorDinero() {
   const chartBarData = useMemo(() => {
     const items = [
       ...dineroActual.filter((it) => Number(it.monto) > 0).map((it) => ({ nombre: it.concepto || 'Sin concepto', monto: Number(it.monto), tipo: 'actual' })),
-      ...aCobrar.filter((it) => Number(it.monto) > 0).map((it) => ({ nombre: it.concepto || 'Sin concepto', monto: Number(it.monto), tipo: 'aCobrar' })),
+      ...aCobrar.filter((it) => !it.cobrado && Number(it.monto) > 0).map((it) => ({ nombre: it.concepto || 'Sin concepto', monto: Number(it.monto), tipo: 'aCobrar' })),
     ];
     return items.slice(0, 10);
   }, [dineroActual, aCobrar]);
@@ -713,7 +1033,7 @@ export default function ContadorDinero() {
         try {
           const { data, error } = await supabase
             .from('billetera')
-            .select('dinero_actual, a_cobrar, cantidades, gastos, deudas, deudores')
+            .select('dinero_actual, a_cobrar, cantidades, gastos, deudas, deudores, objetivos_compra')
             .eq('id', BILLETERA_ID)
             .maybeSingle();
           if (!error && data) {
@@ -726,7 +1046,7 @@ export default function ContadorDinero() {
               setDineroActual(data.dinero_actual.map((it) => ({ ...it, id: it.id ?? Date.now() + Math.random() })));
             }
             if (Array.isArray(data.a_cobrar)) {
-              setACobrar(data.a_cobrar.map((it) => ({ ...it, id: it.id ?? Date.now() + Math.random() })));
+              setACobrar(data.a_cobrar.map((it) => ({ ...it, id: it.id ?? Date.now() + Math.random(), cobrado: !!it.cobrado })));
             }
             if (Array.isArray(data.gastos)) {
               setGastos(data.gastos.map((it) => ({ ...it, id: it.id ?? Date.now() + Math.random() })));
@@ -736,6 +1056,15 @@ export default function ContadorDinero() {
             }
             if (Array.isArray(data.deudores)) {
               setDeudores(data.deudores.map((it) => ({ ...it, id: it.id ?? Date.now() + Math.random() })));
+            }
+            if (Array.isArray(data.objetivos_compra)) {
+              setObjetivosCompra(
+                data.objetivos_compra.map((it) => ({
+                  ...it,
+                  id: it.id ?? Date.now() + Math.random(),
+                  comprado: !!it.comprado,
+                }))
+              );
             }
             if (Array.isArray(data.dinero_actual) && data.dinero_actual.length === 0 && data.cantidades && typeof data.cantidades === 'object') {
               const total = Object.entries(data.cantidades).reduce((s, [v, c]) => s + Number(v) * (Number(c) || 0), 0);
@@ -761,10 +1090,15 @@ export default function ContadorDinero() {
         if (raw) {
           const data = JSON.parse(raw);
           if (Array.isArray(data.dineroActual)) setDineroActual(data.dineroActual);
-          if (Array.isArray(data.aCobrar)) setACobrar(data.aCobrar);
+          if (Array.isArray(data.aCobrar)) {
+            setACobrar(data.aCobrar.map((it) => ({ ...it, cobrado: !!it.cobrado })));
+          }
           if (Array.isArray(data.gastos)) setGastos(data.gastos);
           if (Array.isArray(data.deudas)) setDeudas(data.deudas);
           if (Array.isArray(data.deudores)) setDeudores(data.deudores);
+          if (Array.isArray(data.objetivosCompra)) {
+            setObjetivosCompra(data.objetivosCompra.map((it) => ({ ...it, comprado: !!it.comprado })));
+          }
           if (data.metaAhorro != null) setMetaAhorro(data.metaAhorro);
         }
       } catch (_) {}
@@ -772,7 +1106,7 @@ export default function ContadorDinero() {
     }
   }, []);
 
-  const saveToBackend = useCallback(async (dineroActualData, aCobrarData, gastosData, deudasData, deudoresData) => {
+  const saveToBackend = useCallback(async (dineroActualData, aCobrarData, gastosData, deudasData, deudoresData, objetivosCompraData) => {
     if (supabase) {
       setSaveStatus('saving');
       setSaveError(null);
@@ -787,6 +1121,7 @@ export default function ContadorDinero() {
             gastos: gastosData,
             deudas: deudasData,
             deudores: deudoresData,
+            objetivos_compra: objetivosCompraData,
             updated_at: new Date().toISOString(),
           },
           { onConflict: 'id' }
@@ -799,12 +1134,28 @@ export default function ContadorDinero() {
         setSaveStatus('error');
         setSaveError(msg);
         try {
-          localStorage.setItem(STORAGE_KEY, JSON.stringify({ dineroActual: dineroActualData, aCobrar: aCobrarData, gastos: gastosData, deudas: deudasData, deudores: deudoresData, metaAhorro }));
+          localStorage.setItem(STORAGE_KEY, JSON.stringify({
+            dineroActual: dineroActualData,
+            aCobrar: aCobrarData,
+            gastos: gastosData,
+            deudas: deudasData,
+            deudores: deudoresData,
+            objetivosCompra: objetivosCompraData,
+            metaAhorro,
+          }));
         } catch (_) {}
       }
     } else {
       try {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify({ dineroActual: dineroActualData, aCobrar: aCobrarData, gastos: gastosData, deudas: deudasData, deudores: deudoresData, metaAhorro }));
+        localStorage.setItem(STORAGE_KEY, JSON.stringify({
+          dineroActual: dineroActualData,
+          aCobrar: aCobrarData,
+          gastos: gastosData,
+          deudas: deudasData,
+          deudores: deudoresData,
+          objetivosCompra: objetivosCompraData,
+          metaAhorro,
+        }));
       } catch (_) {}
     }
   }, [metaAhorro]);
@@ -812,12 +1163,21 @@ export default function ContadorDinero() {
   useEffect(() => {
     if (isLoading) return;
     if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
-    saveTimeoutRef.current = setTimeout(() => saveToBackend(dineroActual, aCobrar, gastos, deudas, deudores), 1000);
+    saveTimeoutRef.current = setTimeout(
+      () => saveToBackend(dineroActual, aCobrar, gastos, deudas, deudores, objetivosCompra),
+      1000
+    );
     return () => { if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current); };
-  }, [dineroActual, aCobrar, gastos, deudas, deudores, isLoading, saveToBackend]);
+  }, [dineroActual, aCobrar, gastos, deudas, deudores, objetivosCompra, isLoading, saveToBackend]);
 
   const addEntrada = (setter, withCat = false) => {
     setter((prev) => [...prev, { id: Date.now(), concepto: '', monto: '', fecha: '', ...(withCat ? { categoria: '' } : {}) }]);
+  };
+  const addACobrar = () => {
+    setACobrar((prev) => [
+      ...prev,
+      { id: Date.now(), concepto: '', monto: '', fecha: '', cobrado: false },
+    ]);
   };
   const addDeuda = () => {
     setDeudas((prev) => [
@@ -882,6 +1242,66 @@ export default function ContadorDinero() {
     }
     updateEntrada(setDeudas, id, field, value);
   };
+  const toggleDeudaPagada = useCallback((id, pagado) => {
+    setDeudas((prev) => {
+      const item = prev.find((d) => d.id === id);
+      if (!item || !!item.pagado === pagado) return prev;
+
+      const label = labelDeuda(item);
+      if (pagado) {
+        const monto = Number(item.monto) || 0;
+        setDineroActual((dinero) => descontarDeCuenta(dinero, monto, label));
+        return prev.map((d) =>
+          d.id === id
+            ? {
+                ...d,
+                pagado: true,
+                montoDeducido: monto,
+                fechaPago: new Date().toISOString().slice(0, 10),
+              }
+            : d
+        );
+      }
+
+      const montoRestaurar = Number(item.montoDeducido) || Number(item.monto) || 0;
+      setDineroActual((dinero) => reintegrarCuenta(dinero, montoRestaurar, label));
+      return prev.map((d) =>
+        d.id === id
+          ? { ...d, pagado: false, montoDeducido: undefined, fechaPago: '' }
+          : d
+      );
+    });
+  }, []);
+  const toggleACobrarCobrado = useCallback((id, cobrado) => {
+    setACobrar((prev) => {
+      const item = prev.find((it) => it.id === id);
+      if (!item || !!item.cobrado === cobrado) return prev;
+
+      const label = labelACobrar(item);
+      if (cobrado) {
+        const monto = Number(item.monto) || 0;
+        setDineroActual((dinero) => acreditarEnCuenta(dinero, monto, label));
+        return prev.map((it) =>
+          it.id === id
+            ? {
+                ...it,
+                cobrado: true,
+                montoAcreditado: monto,
+                fechaCobro: new Date().toISOString().slice(0, 10),
+              }
+            : it
+        );
+      }
+
+      const montoRevertir = Number(item.montoAcreditado) || Number(item.monto) || 0;
+      setDineroActual((dinero) => descontarDeCuenta(dinero, montoRevertir, `reversión cobro: ${label}`));
+      return prev.map((it) =>
+        it.id === id
+          ? { ...it, cobrado: false, montoAcreditado: undefined, fechaCobro: '' }
+          : it
+      );
+    });
+  }, []);
   const deleteEntrada = (setter, id) => {
     setter((prev) => prev.filter((it) => it.id !== id));
   };
@@ -895,6 +1315,51 @@ export default function ContadorDinero() {
   const deleteGasto = (id) => {
     setGastos((prev) => prev.filter((it) => it.id !== id));
   };
+
+  const addObjetivoCompra = () => {
+    setObjetivosCompra((prev) => [
+      ...prev,
+      {
+        id: Date.now(),
+        objetivo: '',
+        monto: '',
+        ahorrado: '',
+        prioridad: '',
+        fechaObjetivo: '',
+        comprado: false,
+        notas: '',
+      },
+    ]);
+  };
+  const updateObjetivoCompra = (id, field, value) => {
+    setObjetivosCompra((prev) =>
+      prev.map((it) => {
+        if (it.id !== id) return it;
+        const next = { ...it, [field]: value };
+        if (field === 'comprado' && value) {
+          const meta = Number(it.monto) || 0;
+          if (meta > 0 && (Number(it.ahorrado) || 0) < meta) {
+            next.ahorrado = String(meta);
+          }
+        }
+        return next;
+      })
+    );
+  };
+  const deleteObjetivoCompra = (id) => {
+    setObjetivosCompra((prev) => prev.filter((it) => it.id !== id));
+  };
+
+  const objetivosOrdenados = useMemo(() => {
+    const prioOrder = { Alta: 0, Media: 1, Baja: 2 };
+    return [...objetivosCompra].sort((a, b) => {
+      if (!!a.comprado !== !!b.comprado) return a.comprado ? 1 : -1;
+      const pa = prioOrder[a.prioridad] ?? 3;
+      const pb = prioOrder[b.prioridad] ?? 3;
+      if (pa !== pb) return pa - pb;
+      return (a.fechaObjetivo || '').localeCompare(b.fechaObjetivo || '');
+    });
+  }, [objetivosCompra]);
 
   const gastosOrdenados = useMemo(() => {
     return [...gastos].sort((a, b) => {
@@ -1245,6 +1710,7 @@ export default function ContadorDinero() {
               onUpdate={updateDeuda}
               onDelete={(id) => deleteEntrada(setDeudas, id)}
               onDuplicateNextMonth={duplicateDeudaMesSiguiente}
+              onTogglePagado={toggleDeudaPagada}
             />
           </div>
         </BilleteraSection>
@@ -1331,19 +1797,234 @@ export default function ContadorDinero() {
             </>
           }
           right={
-            <span className="text-lg font-bold text-amber-600 tabular-nums">${formatMoney(totalACobrar)}</span>
+            <div className="text-right">
+              <span className="text-lg font-bold text-amber-600 tabular-nums">${formatMoney(totalACobrar)}</span>
+              <p className="text-xs text-amber-600/80 mt-0.5">Pendiente</p>
+              {totalACobrarCobrado > 0 && (
+                <p className="text-xs text-emerald-600">
+                  Cobrado: ${formatMoney(totalACobrarCobrado)}
+                </p>
+              )}
+            </div>
           }
         >
           <div className="p-4">
-            <EntradaLista
+            <ListaACobrar
               items={aCobrar}
-              onAdd={() => addEntrada(setACobrar)}
+              onAdd={addACobrar}
               onUpdate={(id, field, value) => updateEntrada(setACobrar, id, field, value)}
               onDelete={(id) => deleteEntrada(setACobrar, id)}
-              emptyMessage="No hay expectativas de cobro. Agregá conceptos y montos que esperás cobrar."
-              addLabel="Agregar expectativa"
-              withDate={true}
+              onToggleCobrado={toggleACobrarCobrado}
             />
+          </div>
+        </BilleteraSection>
+
+        {/* Objetivos de compra */}
+        <BilleteraSection
+          open={sectionsOpen.objetivos}
+          onToggle={() => toggleSection('objetivos')}
+          sectionClassName="mt-6"
+          headerClassName="bg-gradient-to-r from-violet-500/10 to-purple-500/5 border-b border-violet-100"
+          left={
+            <>
+              <div className="w-9 h-9 rounded-xl bg-violet-100 flex items-center justify-center">
+                <ShoppingBag size={18} className="text-violet-600" />
+              </div>
+              <div>
+                <h2 className="font-semibold text-gray-800">Objetivos de compra</h2>
+                <p className="text-xs text-gray-500">Metas de ahorro para lo que querés comprar</p>
+              </div>
+            </>
+          }
+          right={
+            <div className="text-right">
+              <span className="text-lg font-bold text-violet-700 tabular-nums">
+                Faltan ${formatMoney(totalObjetivosFaltante)}
+              </span>
+              <p className="text-xs text-violet-600/80 mt-0.5">
+                Meta pendiente: ${formatMoney(totalObjetivosMeta)}
+              </p>
+              {totalObjetivosAhorrado > 0 && (
+                <p className="text-xs text-emerald-600">
+                  Ahorrado: ${formatMoney(totalObjetivosAhorrado)}
+                </p>
+              )}
+            </div>
+          }
+        >
+          <div className="p-4 overflow-x-auto">
+            <table className="w-full text-sm border-collapse min-w-[760px]">
+              <thead>
+                <tr className="border-b border-gray-200 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                  <th className="py-3 pr-2 w-10" />
+                  <th className="py-3 pr-3">Objetivo</th>
+                  <th className="py-3 pr-3 w-[110px] text-right">Precio</th>
+                  <th className="py-3 pr-3 w-[110px] text-right">Ahorrado</th>
+                  <th className="py-3 pr-3 min-w-[120px]">Progreso</th>
+                  <th className="py-3 pr-3 w-[90px]">Prioridad</th>
+                  <th className="py-3 pr-3 w-[120px]">Fecha meta</th>
+                  <th className="py-3 w-12" />
+                </tr>
+              </thead>
+              <tbody>
+                {objetivosOrdenados.length === 0 ? (
+                  <tr>
+                    <td colSpan={8} className="py-10 text-center text-gray-400">
+                      No hay objetivos. Agregá qué querés comprar y cuánto cuesta.
+                    </td>
+                  </tr>
+                ) : (
+                  objetivosOrdenados.map((row) => {
+                    const meta = Number(row.monto) || 0;
+                    const ahorrado = Number(row.ahorrado) || 0;
+                    const pct = meta > 0 ? Math.min(100, (ahorrado / meta) * 100) : 0;
+                    const listo = row.comprado || (meta > 0 && ahorrado >= meta);
+                    return (
+                      <React.Fragment key={row.id}>
+                        <tr
+                          className={`border-b border-gray-100 align-middle ${
+                            listo ? 'opacity-60 bg-gray-50/50' : 'hover:bg-gray-50/80'
+                          }`}
+                        >
+                          <td className="py-2 pr-1 text-center">
+                            <input
+                              type="checkbox"
+                              checked={!!row.comprado}
+                              onChange={(e) => updateObjetivoCompra(row.id, 'comprado', e.target.checked)}
+                              className="rounded border-gray-300 text-violet-600 focus:ring-violet-400 w-4 h-4"
+                              title="Marcar como comprado"
+                            />
+                          </td>
+                          <td className="py-2 pr-2">
+                            <input
+                              type="text"
+                              placeholder="Ej. Notebook, sillón…"
+                              value={row.objetivo || ''}
+                              onChange={(e) => updateObjetivoCompra(row.id, 'objetivo', e.target.value)}
+                              className={`w-full min-w-[140px] px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-violet-200 ${
+                                row.comprado ? 'line-through text-gray-500' : ''
+                              }`}
+                            />
+                          </td>
+                          <td className="py-2 pr-2 text-right">
+                            <div className="flex items-center justify-end gap-1">
+                              <span className="text-gray-500">$</span>
+                              <input
+                                type="number"
+                                min={0}
+                                placeholder="0"
+                                value={row.monto ?? ''}
+                                onChange={(e) => updateObjetivoCompra(row.id, 'monto', e.target.value)}
+                                className="w-24 px-2 py-2 rounded-lg border border-gray-200 text-sm font-medium tabular-nums text-right [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none focus:outline-none focus:ring-2 focus:ring-violet-200"
+                              />
+                            </div>
+                          </td>
+                          <td className="py-2 pr-2 text-right">
+                            <div className="flex items-center justify-end gap-1">
+                              <span className="text-gray-500">$</span>
+                              <input
+                                type="number"
+                                min={0}
+                                placeholder="0"
+                                value={row.ahorrado ?? ''}
+                                onChange={(e) => updateObjetivoCompra(row.id, 'ahorrado', e.target.value)}
+                                className="w-24 px-2 py-2 rounded-lg border border-gray-200 text-sm font-medium tabular-nums text-right [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none focus:outline-none focus:ring-2 focus:ring-violet-200"
+                              />
+                            </div>
+                          </td>
+                          <td className="py-2 pr-2">
+                            <div className="flex items-center gap-2 min-w-[100px]">
+                              <div className="flex-1 h-2 bg-gray-200 rounded-full overflow-hidden">
+                                <div
+                                  className={`h-full rounded-full transition-all ${
+                                    listo ? 'bg-emerald-500' : 'bg-violet-500'
+                                  }`}
+                                  style={{ width: `${pct}%` }}
+                                />
+                              </div>
+                              <span className="text-[10px] text-gray-500 tabular-nums w-8 text-right">
+                                {Math.round(pct)}%
+                              </span>
+                            </div>
+                          </td>
+                          <td className="py-2 pr-2">
+                            <select
+                              value={row.prioridad || ''}
+                              onChange={(e) => updateObjetivoCompra(row.id, 'prioridad', e.target.value)}
+                              className={`w-full px-2 py-2 rounded-lg border text-sm focus:outline-none focus:ring-2 focus:ring-violet-200 ${
+                                row.prioridad === 'Alta'
+                                  ? 'border-red-200 bg-red-50 text-red-700'
+                                  : row.prioridad === 'Media'
+                                    ? 'border-amber-200 bg-amber-50 text-amber-800'
+                                    : 'border-gray-200'
+                              }`}
+                            >
+                              <option value="">—</option>
+                              {DEUDAS_PRIORIDAD.map((p) => (
+                                <option key={p} value={p}>{p}</option>
+                              ))}
+                            </select>
+                          </td>
+                          <td className="py-2 pr-2">
+                            <input
+                              type="date"
+                              value={row.fechaObjetivo || ''}
+                              onChange={(e) => updateObjetivoCompra(row.id, 'fechaObjetivo', e.target.value)}
+                              className="w-full px-2 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-violet-200"
+                            />
+                          </td>
+                          <td className="py-2 text-center">
+                            <button
+                              type="button"
+                              onClick={() => deleteObjetivoCompra(row.id)}
+                              className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                              title="Eliminar"
+                            >
+                              <Trash2 size={18} />
+                            </button>
+                          </td>
+                        </tr>
+                        <tr className={listo ? 'opacity-60' : ''}>
+                          <td colSpan={8} className="pb-2 px-1">
+                            <input
+                              type="text"
+                              placeholder="Notas (opcional): link, tienda, observaciones…"
+                              value={row.notas || ''}
+                              onChange={(e) => updateObjetivoCompra(row.id, 'notas', e.target.value)}
+                              className="w-full px-3 py-1.5 rounded-lg border border-gray-100 bg-gray-50/50 text-xs text-gray-600 focus:outline-none focus:ring-2 focus:ring-violet-200 focus:bg-white"
+                            />
+                          </td>
+                        </tr>
+                      </React.Fragment>
+                    );
+                  })
+                )}
+              </tbody>
+              {objetivosOrdenados.length > 0 && (
+                <tfoot>
+                  <tr className="bg-violet-50/50 font-semibold text-gray-800">
+                    <td colSpan={2} className="py-3 px-2 text-right">Pendientes</td>
+                    <td className="py-3 pr-2 text-right tabular-nums text-violet-700">
+                      ${formatMoney(totalObjetivosMeta)}
+                    </td>
+                    <td className="py-3 pr-2 text-right tabular-nums text-emerald-700">
+                      ${formatMoney(totalObjetivosAhorrado)}
+                    </td>
+                    <td colSpan={4} className="py-3 pr-2 text-right tabular-nums text-violet-800">
+                      Faltan ${formatMoney(totalObjetivosFaltante)}
+                    </td>
+                  </tr>
+                </tfoot>
+              )}
+            </table>
+            <button
+              type="button"
+              onClick={addObjetivoCompra}
+              className="mt-4 w-full flex items-center justify-center gap-2 py-3 rounded-xl border-2 border-dashed border-gray-200 text-gray-500 hover:border-violet-300 hover:text-violet-600 hover:bg-violet-50/50 transition-all text-sm font-medium"
+            >
+              <Plus size={18} />
+              Agregar objetivo
+            </button>
           </div>
         </BilleteraSection>
       </main>

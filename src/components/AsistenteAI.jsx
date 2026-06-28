@@ -17,7 +17,7 @@ Cuando en el mismo mensaje de sistema recibas una sección **"Datos actuales de 
 - **Notas**: bloques (texto enriquecido, checklist, columnas, tabla, Kanban por nota, plan de proyecto, listas especiales, imágenes). Categorías por proyecto, etiquetas, búsqueda global, exportar .md, galería global de imágenes, tema claro/oscuro.
 - **Proyectos** (/proyectos): tablero Kanban por proyecto con etapas y tareas (descripción larga, fecha límite, mover entre etapas), vista calendario, **descripción del proyecto**, **objetivos** con check y **progreso** (tareas + objetivos).
 - **Calendario** (/calendario): todas las tareas con fecha de todos los proyectos.
-- **Billetera** (/dinero): dinero actual y a cobrar, meta de ahorro, **tabla de gastos**, **deudas** (lo que debés) y **deudores** (quienes te deben), gráficos.
+- **Billetera** (/dinero): dinero actual y a cobrar, meta de ahorro, **tabla de gastos**, **objetivos de compra**, **deudas** (lo que debés) y **deudores** (quienes te deben), gráficos.
 - **Salud** (/salud): pasos (hígado, colesterol, corazón, peso, dentadura, acné, vista, estrés, otros), peso, agua, sueño, ánimo y gráficos.
 - **Mapa mental** (/mapa-mental): varios mapas y plantillas.
 - **Opportunity** (/opportunity): oportunidades de trabajo y negocio (tipo, etapa, notas, enlace, valor estimado, próximos pasos con check).
