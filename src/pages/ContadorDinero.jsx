@@ -31,9 +31,28 @@ import {
   Check,
   Search,
   AlertTriangle,
+  ChevronDown,
 } from 'lucide-react';
 
 const STORAGE_KEY = 'alenotes_billetera';
+const SECTIONS_STORAGE_KEY = 'alenotes_billetera_sections';
+const DEFAULT_SECTIONS_OPEN = {
+  gastos: true,
+  deudas: true,
+  deudores: true,
+  actual: true,
+  aCobrar: true,
+};
+
+function loadSectionsOpen() {
+  try {
+    const raw = localStorage.getItem(SECTIONS_STORAGE_KEY);
+    if (raw) return { ...DEFAULT_SECTIONS_OPEN, ...JSON.parse(raw) };
+  } catch {
+    /* ignore */
+  }
+  return { ...DEFAULT_SECTIONS_OPEN };
+}
 const BILLETERA_ID = 'default';
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
@@ -218,6 +237,30 @@ function EntradaLista({
         {addLabel}
       </button>
     </div>
+  );
+}
+
+function BilleteraSection({ open, onToggle, headerClassName, sectionClassName = 'mb-6', left, right, children }) {
+  return (
+    <section className={`rounded-2xl bg-white/90 backdrop-blur border border-gray-200/60 shadow-lg shadow-gray-100 overflow-hidden ${sectionClassName}`}>
+      <button
+        type="button"
+        onClick={onToggle}
+        aria-expanded={open}
+        className={`w-full ${headerClassName} px-5 py-4 flex flex-wrap items-center justify-between gap-3 text-left hover:brightness-[0.98] transition-all`}
+      >
+        <div className="flex items-center gap-2 min-w-0">{left}</div>
+        <div className="flex items-center gap-2 shrink-0 flex-wrap justify-end">
+          {right}
+          <ChevronDown
+            size={20}
+            className={`text-gray-400 transition-transform duration-200 ${open ? 'rotate-180' : ''}`}
+            aria-hidden
+          />
+        </div>
+      </button>
+      {open && children}
+    </section>
   );
 }
 
@@ -595,6 +638,19 @@ export default function ContadorDinero() {
   const [saveStatus, setSaveStatus] = useState('saved');
   const [saveError, setSaveError] = useState(null);
   const saveTimeoutRef = useRef(null);
+  const [sectionsOpen, setSectionsOpen] = useState(loadSectionsOpen);
+
+  const toggleSection = useCallback((key) => {
+    setSectionsOpen((prev) => {
+      const next = { ...prev, [key]: !prev[key] };
+      try {
+        localStorage.setItem(SECTIONS_STORAGE_KEY, JSON.stringify(next));
+      } catch {
+        /* ignore */
+      }
+      return next;
+    });
+  }, []);
 
   const totalActual = useMemo(
     () => dineroActual.reduce((sum, it) => sum + (Number(it.monto) || 0), 0),
@@ -1026,9 +1082,13 @@ export default function ContadorDinero() {
         </div>
 
         {/* Tabla de gastos */}
-        <section className="rounded-2xl bg-white/90 backdrop-blur border border-gray-200/60 shadow-lg shadow-gray-100 overflow-hidden mb-8">
-          <div className="bg-gradient-to-r from-rose-500/10 to-orange-500/5 px-5 py-4 border-b border-rose-100 flex flex-wrap items-center justify-between gap-3">
-            <div className="flex items-center gap-2">
+        <BilleteraSection
+          open={sectionsOpen.gastos}
+          onToggle={() => toggleSection('gastos')}
+          sectionClassName="mb-8"
+          headerClassName="bg-gradient-to-r from-rose-500/10 to-orange-500/5 border-b border-rose-100"
+          left={
+            <>
               <div className="w-9 h-9 rounded-xl bg-rose-100 flex items-center justify-center">
                 <Receipt size={18} className="text-rose-600" />
               </div>
@@ -1036,9 +1096,12 @@ export default function ContadorDinero() {
                 <h2 className="font-semibold text-gray-800">Tabla de gastos</h2>
                 <p className="text-xs text-gray-500">Registrá lo que gastás para llevar el control</p>
               </div>
-            </div>
+            </>
+          }
+          right={
             <span className="text-lg font-bold text-rose-600 tabular-nums">Total: ${formatMoney(totalGastos)}</span>
-          </div>
+          }
+        >
           <div className="p-4 overflow-x-auto">
             <table className="w-full text-sm border-collapse min-w-[640px]">
               <thead>
@@ -1134,12 +1197,15 @@ export default function ContadorDinero() {
               Agregar gasto
             </button>
           </div>
-        </section>
+        </BilleteraSection>
 
         {/* Deudas: lo que debés */}
-        <section className="rounded-2xl bg-white/90 backdrop-blur border border-gray-200/60 shadow-lg shadow-gray-100 overflow-hidden mb-6">
-          <div className="bg-gradient-to-r from-slate-600/10 to-slate-500/5 px-5 py-4 border-b border-slate-200 flex items-center justify-between">
-            <div className="flex items-center gap-2">
+        <BilleteraSection
+          open={sectionsOpen.deudas}
+          onToggle={() => toggleSection('deudas')}
+          headerClassName="bg-gradient-to-r from-slate-600/10 to-slate-500/5 border-b border-slate-200"
+          left={
+            <>
               <div className="w-9 h-9 rounded-xl bg-slate-100 flex items-center justify-center">
                 <CreditCard size={18} className="text-slate-600" />
               </div>
@@ -1147,7 +1213,9 @@ export default function ContadorDinero() {
                 <h2 className="font-semibold text-gray-800">Deudas</h2>
                 <p className="text-xs text-gray-500">Préstamos, tarjetas, cuotas que debés pagar</p>
               </div>
-            </div>
+            </>
+          }
+          right={
             <div className="text-right">
               <span className="text-lg font-bold text-slate-700 tabular-nums">${formatMoney(totalDeudas)}</span>
               <p className="text-xs text-slate-500 mt-0.5">Pendientes</p>
@@ -1168,7 +1236,8 @@ export default function ContadorDinero() {
                 </p>
               )}
             </div>
-          </div>
+          }
+        >
           <div className="p-4">
             <ListaDeudas
               items={deudas}
@@ -1178,12 +1247,15 @@ export default function ContadorDinero() {
               onDuplicateNextMonth={duplicateDeudaMesSiguiente}
             />
           </div>
-        </section>
+        </BilleteraSection>
 
         {/* Deudores: quienes te deben */}
-        <section className="rounded-2xl bg-white/90 backdrop-blur border border-gray-200/60 shadow-lg shadow-gray-100 overflow-hidden mb-6">
-          <div className="bg-gradient-to-r from-teal-500/10 to-cyan-500/5 px-5 py-4 border-b border-teal-100 flex items-center justify-between">
-            <div className="flex items-center gap-2">
+        <BilleteraSection
+          open={sectionsOpen.deudores}
+          onToggle={() => toggleSection('deudores')}
+          headerClassName="bg-gradient-to-r from-teal-500/10 to-cyan-500/5 border-b border-teal-100"
+          left={
+            <>
               <div className="w-9 h-9 rounded-xl bg-teal-100 flex items-center justify-center">
                 <UserCircle size={18} className="text-teal-600" />
               </div>
@@ -1191,9 +1263,12 @@ export default function ContadorDinero() {
                 <h2 className="font-semibold text-gray-800">Deudores</h2>
                 <p className="text-xs text-gray-500">Personas que te deben dinero</p>
               </div>
-            </div>
+            </>
+          }
+          right={
             <span className="text-lg font-bold text-teal-600 tabular-nums">${formatMoney(totalDeudores)}</span>
-          </div>
+          }
+        >
           <div className="p-4">
             <EntradaLista
               items={deudores}
@@ -1208,19 +1283,25 @@ export default function ContadorDinero() {
               focusRing="teal"
             />
           </div>
-        </section>
+        </BilleteraSection>
 
         {/* Dinero actual - misma UI que A cobrar */}
-        <section className="rounded-2xl bg-white/90 backdrop-blur border border-gray-200/60 shadow-lg shadow-gray-100 overflow-hidden mb-6">
-          <div className="bg-gradient-to-r from-emerald-500/10 to-emerald-600/5 px-5 py-4 border-b border-emerald-100 flex items-center justify-between">
-            <div className="flex items-center gap-2">
+        <BilleteraSection
+          open={sectionsOpen.actual}
+          onToggle={() => toggleSection('actual')}
+          headerClassName="bg-gradient-to-r from-emerald-500/10 to-emerald-600/5 border-b border-emerald-100"
+          left={
+            <>
               <div className="w-9 h-9 rounded-xl bg-emerald-100 flex items-center justify-center">
                 <PiggyBank size={18} className="text-emerald-600" />
               </div>
               <h2 className="font-semibold text-gray-800">Dinero actual</h2>
-            </div>
+            </>
+          }
+          right={
             <span className="text-lg font-bold text-emerald-600 tabular-nums">${formatMoney(totalActual)}</span>
-          </div>
+          }
+        >
           <div className="p-4">
             <EntradaLista
               items={dineroActual}
@@ -1233,19 +1314,26 @@ export default function ContadorDinero() {
               withCategory={true}
             />
           </div>
-        </section>
+        </BilleteraSection>
 
         {/* A cobrar */}
-        <section className="rounded-2xl bg-white/90 backdrop-blur border border-gray-200/60 shadow-lg shadow-gray-100 overflow-hidden">
-          <div className="bg-gradient-to-r from-amber-500/10 to-amber-600/5 px-5 py-4 border-b border-amber-100 flex items-center justify-between">
-            <div className="flex items-center gap-2">
+        <BilleteraSection
+          open={sectionsOpen.aCobrar}
+          onToggle={() => toggleSection('aCobrar')}
+          sectionClassName=""
+          headerClassName="bg-gradient-to-r from-amber-500/10 to-amber-600/5 border-b border-amber-100"
+          left={
+            <>
               <div className="w-9 h-9 rounded-xl bg-amber-100 flex items-center justify-center">
                 <TrendingUp size={18} className="text-amber-600" />
               </div>
               <h2 className="font-semibold text-gray-800">A cobrar</h2>
-            </div>
+            </>
+          }
+          right={
             <span className="text-lg font-bold text-amber-600 tabular-nums">${formatMoney(totalACobrar)}</span>
-          </div>
+          }
+        >
           <div className="p-4">
             <EntradaLista
               items={aCobrar}
@@ -1257,7 +1345,7 @@ export default function ContadorDinero() {
               withDate={true}
             />
           </div>
-        </section>
+        </BilleteraSection>
       </main>
     </div>
   );
