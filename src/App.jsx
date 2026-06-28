@@ -9,7 +9,7 @@ import {
   Link as LinkIcon, ExternalLink, Book, Tv, Plane, Dumbbell, Wrench,
   ShoppingCart, Heart, Map, AlertCircle, ListTodo, Loader2, Folder, Brain, Rocket, Landmark,
   Bold, Underline, Italic, Strikethrough, List, Pin, PinOff, DollarSign,
-  Moon, Sun, Download, Database, Upload
+  Moon, Sun, Download, Database, Upload, LayoutGrid
 } from 'lucide-react';
 import { useTheme } from './contexts/ThemeContext';
 
@@ -61,7 +61,7 @@ const Button = ({ onClick, children, variant = 'primary', className = '', icon: 
   const baseStyle = "flex items-center justify-center px-4 py-2 rounded-lg font-medium transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-1 select-none active:scale-95 touch-manipulation";
   const variants = {
     primary: "bg-indigo-600 text-white hover:bg-indigo-700 focus:ring-indigo-500 shadow-md hover:shadow-lg",
-    secondary: "bg-white text-gray-700 border border-gray-200 hover:bg-gray-50 hover:border-gray-300 focus:ring-gray-200",
+    secondary: "bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 border border-gray-200 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-600 hover:border-gray-300 dark:hover:border-gray-500 focus:ring-gray-200",
     ghost: "text-gray-500 hover:bg-gray-100 hover:text-gray-900",
     danger: "text-red-500 hover:bg-red-50 hover:text-red-700",
     icon: "p-2 rounded-full hover:bg-gray-100 text-gray-500"
@@ -77,7 +77,7 @@ const Button = ({ onClick, children, variant = 'primary', className = '', icon: 
 const Badge = ({ children, colorKey = 'gray', active, onClick }) => {
   const theme = COLOR_PALETTE[colorKey] || COLOR_PALETTE.gray;
   return (
-    <span onClick={onClick} className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium whitespace-nowrap transition-colors cursor-pointer border select-none touch-manipulation ${active ? `${theme.bg} ${theme.text} ${theme.border} ring-1 ring-offset-1 ring-${colorKey}-300` : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'}`}>
+    <span onClick={onClick} className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium whitespace-nowrap transition-colors cursor-pointer border select-none touch-manipulation ${active ? `${theme.bg} ${theme.text} ${theme.border} ring-1 ring-offset-1 ring-${colorKey}-300 dark:ring-offset-gray-800` : 'bg-white dark:bg-gray-700 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-600'}`}>
       {active && <span className={`w-1.5 h-1.5 rounded-full mr-2 ${theme.dot}`}></span>}
       {children}
     </span>
@@ -87,6 +87,82 @@ const Badge = ({ children, colorKey = 'gray', active, onClick }) => {
 const NoteBadge = ({ children, colorKey = 'gray' }) => {
   const theme = COLOR_PALETTE[colorKey] || COLOR_PALETTE.gray;
   return (<span className={`text-[10px] px-1.5 py-0.5 rounded-md truncate max-w-[80px] ${theme.bg} ${theme.text} border ${theme.border}`}>{children}</span>);
+};
+
+const DEFAULT_KANBAN_COLUMNS = [
+  { id: 'todo', title: 'POR HACER', cards: [] },
+  { id: 'progress', title: 'EN CURSO', cards: [] },
+  { id: 'done', title: 'HECHO', cards: [] },
+];
+
+function normalizeBlock(block, index) {
+  if (!block || typeof block !== 'object') {
+    return { id: `b-legacy-${index}`, type: 'text', content: '' };
+  }
+  const id = block.id || `b-legacy-${index}`;
+  switch (block.type) {
+    case 'checklist':
+      return {
+        ...block,
+        id,
+        items: Array.isArray(block.items) && block.items.length > 0
+          ? block.items.map((item, i) => ({
+              id: item?.id || `ci-legacy-${index}-${i}`,
+              text: item?.text ?? '',
+              checked: !!item?.checked,
+            }))
+          : [{ id: `ci-legacy-${index}-0`, text: '', checked: false }],
+      };
+    case 'table': {
+      const data = Array.isArray(block.data) && block.data.length > 0
+        ? block.data
+        : [['', '', ''], ['', '', '']];
+      return {
+        ...block,
+        id,
+        data,
+        headers: Array.isArray(block.headers) && block.headers.length
+          ? block.headers
+          : data[0].map((_, i) => `Col ${i + 1}`),
+      };
+    }
+    case 'columns':
+      return { ...block, id, left: block.left ?? '', right: block.right ?? '' };
+    case 'kanban':
+      return {
+        ...block,
+        id,
+        columns: Array.isArray(block.columns) && block.columns.length ? block.columns : DEFAULT_KANBAN_COLUMNS,
+      };
+    case 'project':
+      return {
+        ...block,
+        id,
+        tasks: Array.isArray(block.tasks) && block.tasks.length
+          ? block.tasks
+          : [{ id: Date.now(), text: '', date: '', assignee: '', done: false }],
+      };
+    case 'special_list':
+      return { ...block, id, listType: block.listType || 'books', items: Array.isArray(block.items) ? block.items : [] };
+    case 'image':
+      return { ...block, id, src: block.src ?? null, caption: block.caption ?? '' };
+    default:
+      return { ...block, id, type: block.type || 'text', content: block.content ?? '' };
+  }
+}
+
+function normalizeBlocks(blocks) {
+  if (!Array.isArray(blocks) || blocks.length === 0) {
+    return [{ id: `b-${Date.now()}`, type: 'text', content: '' }];
+  }
+  return blocks.map(normalizeBlock);
+}
+
+function htmlContentEqual(a, b) {
+  const strip = (v) => (v || '').replace(/<br\s*\/?>/gi, '').trim();
+  const na = strip(a);
+  const nb = strip(b);
+  return na === nb || (!na && !nb);
 }
 
 // --- Blocks ---
@@ -95,10 +171,13 @@ const TextBlock = ({ content, onChange, placeholder = "Escribe algo aquí..." })
   const [showFormatBar, setShowFormatBar] = React.useState(false);
   const [isComposing, setIsComposing] = React.useState(false);
 
-  // Sincronizar contenido cuando cambia externamente
+  // Sincronizar contenido cuando cambia externamente (no mientras se escribe)
   React.useEffect(() => {
-    if (editorRef.current && editorRef.current.innerHTML !== content) {
-      editorRef.current.innerHTML = content || '';
+    if (!editorRef.current) return;
+    if (document.activeElement === editorRef.current) return;
+    const next = content || '';
+    if (!htmlContentEqual(editorRef.current.innerHTML, next)) {
+      editorRef.current.innerHTML = next;
     }
   }, [content]);
 
@@ -357,21 +436,22 @@ const ColumnsBlock = ({ leftContent, rightContent, onLeftChange, onRightChange }
 );
 
 const TableBlock = ({ data, headers, onChange }) => {
-  const currentHeaders = headers || data[0].map((_, i) => `Columna ${i + 1}`);
-  const updateHeader = (index, value) => { const newHeaders = [...currentHeaders]; newHeaders[index] = value; onChange(data, newHeaders); };
-  const addRow = () => { const newRow = new Array(data[0].length).fill(''); onChange([...data, newRow], currentHeaders); };
-  const addCol = () => { const newData = data.map(row => [...row, '']); const newHeaders = [...currentHeaders, `Columna ${currentHeaders.length + 1}`]; onChange(newData, newHeaders); };
-  const updateCell = (rowIndex, colIndex, value) => { const newData = [...data]; newData[rowIndex][colIndex] = value; onChange(newData, currentHeaders); };
-  const removeRow = (index) => { if (data.length <= 1) return; const newData = data.filter((_, i) => i !== index); onChange(newData, currentHeaders); };
+  const safeData = Array.isArray(data) && data.length > 0 ? data : [['', '', ''], ['', '', '']];
+  const currentHeaders = headers?.length ? headers : safeData[0].map((_, i) => `Columna ${i + 1}`);
+  const updateHeader = (index, value) => { const newHeaders = [...currentHeaders]; newHeaders[index] = value; onChange(safeData, newHeaders); };
+  const addRow = () => { const newRow = new Array(safeData[0].length).fill(''); onChange([...safeData, newRow], currentHeaders); };
+  const addCol = () => { const newData = safeData.map(row => [...row, '']); const newHeaders = [...currentHeaders, `Columna ${currentHeaders.length + 1}`]; onChange(newData, newHeaders); };
+  const updateCell = (rowIndex, colIndex, value) => { const newData = safeData.map((row, ri) => ri === rowIndex ? row.map((cell, ci) => ci === colIndex ? value : cell) : [...row]); onChange(newData, currentHeaders); };
+  const removeRow = (index) => { if (safeData.length <= 1) return; const newData = safeData.filter((_, i) => i !== index); onChange(newData, currentHeaders); };
   return (
-    <div className="my-6 overflow-x-auto bg-white border border-gray-200 rounded-xl shadow-sm scrollbar-thin scrollbar-thumb-gray-200">
+    <div className="my-6 overflow-x-auto bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-xl shadow-sm scrollbar-thin scrollbar-thumb-gray-200">
       <table className="w-full min-w-[500px]">
         <thead>
-          <tr>{currentHeaders.map((header, i) => (<th key={i} className="p-0 bg-gray-50 border-b border-gray-200 w-1/3"><input type="text" value={header} onChange={(e) => updateHeader(i, e.target.value)} className="w-full p-2 bg-transparent font-bold text-xs text-gray-500 uppercase tracking-wider focus:outline-none focus:bg-indigo-50 focus:text-indigo-700" placeholder="TITULO" /></th>))}<th className="p-2 bg-gray-50 border-b border-gray-200 w-10"></th></tr>
+          <tr>{currentHeaders.map((header, i) => (<th key={i} className="p-0 bg-gray-50 dark:bg-gray-700/50 border-b border-gray-200 dark:border-gray-600 w-1/3"><input type="text" value={header} onChange={(e) => updateHeader(i, e.target.value)} className="w-full p-2 bg-transparent font-bold text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wider focus:outline-none focus:bg-indigo-50 dark:focus:bg-indigo-900/30 focus:text-indigo-700 dark:focus:text-indigo-300" placeholder="TITULO" /></th>))}<th className="p-2 bg-gray-50 dark:bg-gray-700/50 border-b border-gray-200 dark:border-gray-600 w-10"></th></tr>
         </thead>
-        <tbody className="divide-y divide-gray-100">{data.map((row, rowIndex) => (<tr key={rowIndex} className="group hover:bg-gray-50">{row.map((cell, colIndex) => (<td key={colIndex} className="p-1 border-r border-transparent group-hover:border-gray-200"><input type="text" value={cell} onChange={(e) => updateCell(rowIndex, colIndex, e.target.value)} className="w-full p-2 bg-transparent focus:outline-none focus:bg-white rounded text-base md:text-sm text-gray-700" placeholder="-" /></td>))}<td className="p-1 text-center"><button onClick={() => removeRow(rowIndex)} className="text-gray-300 hover:text-red-500 transition-colors opacity-100 md:opacity-0 md:group-hover:opacity-100 touch-manipulation"><X size={14} /></button></td></tr>))}</tbody>
+        <tbody className="divide-y divide-gray-100 dark:divide-gray-700">{safeData.map((row, rowIndex) => (<tr key={rowIndex} className="group hover:bg-gray-50 dark:hover:bg-gray-700/40">{row.map((cell, colIndex) => (<td key={colIndex} className="p-1 border-r border-transparent group-hover:border-gray-200 dark:group-hover:border-gray-600"><input type="text" value={cell} onChange={(e) => updateCell(rowIndex, colIndex, e.target.value)} className="w-full p-2 bg-transparent focus:outline-none focus:bg-white dark:focus:bg-gray-800 rounded text-base md:text-sm text-gray-700 dark:text-gray-200" placeholder="-" /></td>))}<td className="p-1 text-center"><button onClick={() => removeRow(rowIndex)} className="text-gray-300 hover:text-red-500 transition-colors opacity-100 md:opacity-0 md:group-hover:opacity-100 touch-manipulation"><X size={14} /></button></td></tr>))}</tbody>
       </table>
-      <div className="flex border-t border-gray-200 divide-x divide-gray-200"><button onClick={addRow} className="flex-1 py-3 md:py-2 text-xs font-medium text-gray-500 hover:bg-gray-50 hover:text-indigo-600 transition-colors touch-manipulation">+ Fila</button><button onClick={addCol} className="flex-1 py-3 md:py-2 text-xs font-medium text-gray-500 hover:bg-gray-50 hover:text-indigo-600 transition-colors touch-manipulation">+ Columna</button></div>
+      <div className="flex border-t border-gray-200 dark:border-gray-600 divide-x divide-gray-200 dark:divide-gray-600"><button onClick={addRow} className="flex-1 py-3 md:py-2 text-xs font-medium text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors touch-manipulation">+ Fila</button><button onClick={addCol} className="flex-1 py-3 md:py-2 text-xs font-medium text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors touch-manipulation">+ Columna</button></div>
     </div>
   );
 };
@@ -400,21 +480,22 @@ const ProjectPlanBlock = ({ tasks, onChange }) => {
 };
 
 const SpecialListBlock = ({ listType, items, onChange, onTypeChange }) => {
+  const safeItems = Array.isArray(items) ? items : [];
   const config = SPECIAL_LIST_TYPES[listType] || SPECIAL_LIST_TYPES.books;
   const theme = COLOR_PALETTE[config.color] || COLOR_PALETTE.gray;
   const Icon = config.icon;
-  const addItem = (e) => { if (e.key === 'Enter' && e.target.value.trim() !== '') { onChange([...items, { id: Date.now(), text: e.target.value, checked: false }]); e.target.value = ''; } };
-  const toggleItem = (id) => { onChange(items.map(item => item.id === id ? { ...item, checked: !item.checked } : item)); };
-  const deleteItem = (id) => { onChange(items.filter(item => item.id !== id)); };
-  const checkedCount = items.filter(i => i.checked).length;
+  const addItem = (e) => { if (e.key === 'Enter' && e.target.value.trim() !== '') { onChange([...safeItems, { id: Date.now(), text: e.target.value, checked: false }]); e.target.value = ''; } };
+  const toggleItem = (id) => { onChange(safeItems.map(item => item.id === id ? { ...item, checked: !item.checked } : item)); };
+  const deleteItem = (id) => { onChange(safeItems.filter(item => item.id !== id)); };
+  const checkedCount = safeItems.filter(i => i.checked).length;
   return (
     <div className={`my-6 bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm transition-all duration-300`}>
       <div className={`${theme.bg} px-4 py-3 border-b ${theme.border} flex items-center justify-between`}>
         <div className="flex items-center gap-2 group relative"><Icon size={20} className={theme.text} /><div className="relative"><select value={listType} onChange={(e) => onTypeChange(e.target.value)} className={`appearance-none bg-transparent font-bold ${theme.text} uppercase tracking-wide text-sm focus:outline-none pr-8 cursor-pointer py-1`}>{Object.entries(SPECIAL_LIST_TYPES).map(([key, val]) => (<option key={key} value={key}>{val.label}</option>))}</select><div className={`absolute right-0 top-1/2 -translate-y-1/2 pointer-events-none ${theme.text}`}><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path></svg></div></div></div>
-        <span className={`text-xs font-bold ${theme.text} bg-white/50 px-2 py-0.5 rounded-full`}>{checkedCount}/{items.length}</span>
+        <span className={`text-xs font-bold ${theme.text} bg-white/50 px-2 py-0.5 rounded-full`}>{checkedCount}/{safeItems.length}</span>
       </div>
       {config.showBigCounter && (<div className="bg-pink-50 p-6 flex flex-col items-center justify-center border-b border-pink-100"><div className="text-6xl font-black text-pink-500 drop-shadow-sm transition-all scale-100">{checkedCount}</div><div className="text-xs font-medium text-pink-400 uppercase tracking-widest mt-2">Namis Completados</div></div>)}
-      <div className="p-2 space-y-1">{items.map(item => (<div key={item.id} className="flex items-center group p-2 rounded-lg hover:bg-gray-50 transition-colors"><button onClick={() => toggleItem(item.id)} className={`w-6 h-6 flex-shrink-0 flex items-center justify-center rounded border mr-3 transition-colors touch-manipulation ${item.checked ? `bg-${config.color}-500 border-${config.color}-500 text-white` : 'border-gray-300 text-transparent hover:border-gray-400'}`}><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7"></path></svg></button><span className={`flex-1 text-base md:text-sm ${item.checked ? 'text-gray-400 line-through decoration-gray-300' : 'text-gray-700'}`}>{item.text}</span><button onClick={() => deleteItem(item.id)} className="opacity-100 md:opacity-0 md:group-hover:opacity-100 text-gray-300 hover:text-red-400 p-2 touch-manipulation"><Trash2 size={16} /></button></div>))}<div className="px-2 py-2"><input type="text" placeholder="+ Añadir elemento..." onKeyDown={addItem} className="w-full text-base md:text-sm bg-transparent placeholder-gray-400 text-gray-700 focus:outline-none p-1" /></div></div>
+      <div className="p-2 space-y-1">{safeItems.map(item => (<div key={item.id} className="flex items-center group p-2 rounded-lg hover:bg-gray-50 transition-colors"><button onClick={() => toggleItem(item.id)} className={`w-6 h-6 flex-shrink-0 flex items-center justify-center rounded border mr-3 transition-colors touch-manipulation ${item.checked ? `bg-${config.color}-500 border-${config.color}-500 text-white` : 'border-gray-300 text-transparent hover:border-gray-400'}`}><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7"></path></svg></button><span className={`flex-1 text-base md:text-sm ${item.checked ? 'text-gray-400 line-through decoration-gray-300' : 'text-gray-700'}`}>{item.text}</span><button onClick={() => deleteItem(item.id)} className="opacity-100 md:opacity-0 md:group-hover:opacity-100 text-gray-300 hover:text-red-400 p-2 touch-manipulation"><Trash2 size={16} /></button></div>))}<div className="px-2 py-2"><input type="text" placeholder="+ Añadir elemento..." onKeyDown={addItem} className="w-full text-base md:text-sm bg-transparent placeholder-gray-400 text-gray-700 focus:outline-none p-1" /></div></div>
     </div>
   );
 };
@@ -578,7 +659,7 @@ export default function App() {
               return {
                 ...n,
                 id: Number(n.id),
-                blocks,
+                blocks: normalizeBlocks(blocks),
                 pinned: n.pinned || false,
                 tags: Array.isArray(n.tags) ? n.tags : [],
                 updatedAt: n.updated_at || n.updatedAt || new Date().toISOString(),
@@ -612,7 +693,12 @@ export default function App() {
             { name: 'Personal', color: 'emerald', tags: [], description: '', objectives: [], stages: [] },
           ]);
         } else {
-           setNotes(localNotes);
+           setNotes(localNotes.map((n) => ({
+             ...n,
+             blocks: normalizeBlocks(n.blocks),
+             tags: Array.isArray(n.tags) ? n.tags : [],
+             pinned: n.pinned || false,
+           })));
            setProjects(localProjects);
         }
       }
@@ -802,6 +888,11 @@ export default function App() {
   const { theme, toggleTheme } = useTheme();
 
   const activeNote = notes.find(n => n.id === activeNoteId);
+  const categoryOptions = useMemo(() => {
+    if (!activeNote?.category) return projects;
+    if (projects.some((p) => p.name === activeNote.category)) return projects;
+    return [{ name: activeNote.category, color: 'gray', tags: [] }, ...projects];
+  }, [projects, activeNote?.category]);
   const getProjectColor = (projName) => { const proj = projects.find(p => p.name === projName); return proj ? proj.color : 'gray'; };
   const getProjectTags = (projName) => { const proj = projects.find(p => p.name === projName); return proj?.tags || []; };
   
@@ -831,6 +922,7 @@ export default function App() {
     const searchInNote = (n) => {
       if (!q) return true;
       if (n.title?.toLowerCase().includes(q)) return true;
+      if (n.category?.toLowerCase().includes(q)) return true;
       const tags = n.tags || [];
       if (tags.some(t => t.toLowerCase().includes(q))) return true;
       const blocks = n.blocks || [];
@@ -1033,19 +1125,22 @@ export default function App() {
     });
   }, [activeNoteId]);
   const addBlock = (type) => { 
-     if (!activeNoteId) return; 
+     if (!activeNoteId) return;
+     const blockId = `b-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
      let blk;
-     if (type === 'table') blk = { type, data: [['', '', ''], ['', '', '']], headers: ['Col 1', 'Col 2', 'Col 3'] };
-     else if (type === 'columns') blk = { type, left: '', right: '' };
-     else if (type === 'kanban') blk = { type, columns: [{ id: 'todo', title: 'POR HACER', cards: [] }, { id: 'progress', title: 'EN CURSO', cards: [] }, { id: 'done', title: 'HECHO', cards: [] }] };
-     else if (type === 'project') blk = { type, tasks: [{ id: Date.now(), text: '', date: '', assignee: '', done: false }] };
-     else if (type === 'special_list') blk = { type, listType: 'books', items: [] };
-     else if (type === 'image') blk = { type, src: null, caption: '' };
-     else blk = { type, content: '' };
+     if (type === 'table') blk = { id: blockId, type, data: [['', '', ''], ['', '', '']], headers: ['Col 1', 'Col 2', 'Col 3'] };
+     else if (type === 'columns') blk = { id: blockId, type, left: '', right: '' };
+     else if (type === 'checklist') blk = { id: blockId, type, items: [{ id: Date.now(), text: '', checked: false }] };
+     else if (type === 'kanban') blk = { id: blockId, type, columns: DEFAULT_KANBAN_COLUMNS.map((c) => ({ ...c, cards: [] })) };
+     else if (type === 'project') blk = { id: blockId, type, tasks: [{ id: Date.now(), text: '', date: '', assignee: '', done: false }] };
+     else if (type === 'special_list') blk = { id: blockId, type, listType: 'books', items: [] };
+     else if (type === 'image') blk = { id: blockId, type, src: null, caption: '' };
+     else blk = { id: blockId, type, content: '' };
      setNotes(prev => {
        const note = prev.find(n => n.id === activeNoteId);
        if (!note) return prev;
-       const updated = prev.map(n => n.id === activeNoteId ? { ...n, blocks: [...note.blocks, blk], updatedAt: new Date().toISOString() } : n);
+       const blocks = normalizeBlocks(note.blocks);
+       const updated = prev.map(n => n.id === activeNoteId ? { ...n, blocks: [...blocks, blk], updatedAt: new Date().toISOString() } : n);
        notesRef.current = updated;
        return updated;
      });
@@ -1054,7 +1149,7 @@ export default function App() {
     setNotes(prev => {
       const note = prev.find(n => n.id === activeNoteId);
       if (!note) return prev;
-      const bs = [...note.blocks];
+      const bs = [...normalizeBlocks(note.blocks)];
       bs[idx] = { ...bs[idx], ...data };
       const updated = prev.map(n => n.id === activeNoteId ? { ...n, blocks: bs, updatedAt: new Date().toISOString() } : n);
       notesRef.current = updated;
@@ -1065,7 +1160,8 @@ export default function App() {
     setNotes(prev => {
       const note = prev.find(n => n.id === activeNoteId);
       if (!note) return prev;
-      const updated = prev.map(n => n.id === activeNoteId ? { ...n, blocks: note.blocks.filter((_, i) => i !== idx), updatedAt: new Date().toISOString() } : n);
+      const blocks = normalizeBlocks(note.blocks).filter((_, i) => i !== idx);
+      const updated = prev.map(n => n.id === activeNoteId ? { ...n, blocks: blocks.length ? blocks : [{ id: `b-${Date.now()}`, type: 'text', content: '' }], updatedAt: new Date().toISOString() } : n);
       notesRef.current = updated;
       return updated;
     });
@@ -1169,6 +1265,7 @@ export default function App() {
           <Link to="/mapa-mental" className="w-full flex items-center space-x-3 px-3 py-2 rounded-lg transition-colors text-sm font-medium text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 hover:text-indigo-600 dark:hover:text-indigo-400 group"><Brain size={18} className="text-gray-400 dark:text-gray-500 group-hover:text-indigo-500" /><span>Mapa mental</span></Link>
           <Link to="/opportunity" className="w-full flex items-center space-x-3 px-3 py-2 rounded-lg transition-colors text-sm font-medium text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 hover:text-indigo-600 dark:hover:text-indigo-400 group"><Rocket size={18} className="text-gray-400 dark:text-gray-500 group-hover:text-indigo-500" /><span>Opportunity</span></Link>
           <Link to="/mis-empresas" className="w-full flex items-center space-x-3 px-3 py-2 rounded-lg transition-colors text-sm font-medium text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 hover:text-indigo-600 dark:hover:text-indigo-400 group"><Landmark size={18} className="text-gray-400 dark:text-gray-500 group-hover:text-indigo-500" /><span>Mis empresas</span></Link>
+          <Link to="/entradas" className="w-full flex items-center space-x-3 px-3 py-2 rounded-lg transition-colors text-sm font-medium text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 hover:text-indigo-600 dark:hover:text-indigo-400 group"><LayoutGrid size={18} className="text-gray-400 dark:text-gray-500 group-hover:text-indigo-500" /><span>Entradas</span></Link>
           <a href="https://ale.cosechacreativa.com.ar/" target="_blank" rel="noopener noreferrer" className="w-full flex items-center space-x-3 px-3 py-2 rounded-lg transition-colors text-sm font-medium text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 hover:text-indigo-600 dark:hover:text-indigo-400 group"><LinkIcon size={18} className="text-gray-400 dark:text-gray-500 group-hover:text-indigo-500" /><span>Herramientas</span><ExternalLink size={12} className="opacity-0 group-hover:opacity-100 ml-auto" /></a>
           <div className="px-2 pt-2 mt-2 border-t border-gray-100 dark:border-gray-700">
             <div className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-2">Backup</div>
@@ -1311,18 +1408,65 @@ export default function App() {
         ) : viewMode === 'notes' && !activeNote ? (
           <div className="flex-1 overflow-y-auto">
             <div className="max-w-5xl mx-auto px-4 md:px-6 py-6 md:py-8">
-              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
-                <h2 className="text-xl md:text-2xl font-bold text-gray-800 dark:text-white">Todas las notas</h2>
-                <Button onClick={createNote} icon={Plus} variant="primary" className="shadow-md">Nueva nota</Button>
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-4">
+                <h2 className="text-xl md:text-2xl font-bold text-gray-800 dark:text-white">
+                  {selectedCategory === 'Todas' ? 'Todas las notas' : selectedCategory}
+                </h2>
+                <Button onClick={createNote} icon={Plus} variant="primary" className="shadow-md shrink-0">Nueva nota</Button>
               </div>
+              <div className="relative mb-6">
+                <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-500 pointer-events-none" size={18} />
+                <input
+                  type="search"
+                  placeholder="Buscar por título, proyecto, etiquetas o contenido…"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-full pl-11 pr-10 py-3 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-2xl text-sm text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-100 dark:focus:ring-indigo-900 focus:border-indigo-300 dark:focus:border-indigo-700 transition-all"
+                />
+                {searchQuery.trim() && (
+                  <button
+                    type="button"
+                    onClick={() => setSearchQuery('')}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 p-1.5 rounded-lg text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                    aria-label="Limpiar búsqueda"
+                  >
+                    <X size={16} />
+                  </button>
+                )}
+              </div>
+              {searchQuery.trim() && filteredNotes.length > 0 && (
+                <p className="text-xs text-gray-500 dark:text-gray-400 mb-4 -mt-2">
+                  {filteredNotes.length} resultado{filteredNotes.length !== 1 ? 's' : ''}
+                </p>
+              )}
               {filteredNotes.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-16 text-gray-400 dark:text-gray-500">
                   <div className="w-20 h-20 rounded-2xl bg-gray-100 dark:bg-gray-800 flex items-center justify-center mb-5">
-                    <FileText size={40} className="text-gray-300 dark:text-gray-600" />
+                    {searchQuery.trim() ? (
+                      <Search size={40} className="text-gray-300 dark:text-gray-600" />
+                    ) : (
+                      <FileText size={40} className="text-gray-300 dark:text-gray-600" />
+                    )}
                   </div>
-                  <p className="text-lg font-medium text-gray-500 dark:text-gray-400 mb-1">Ninguna nota aún</p>
-                  <p className="text-sm mb-6">Crea una para empezar</p>
-                  <Button onClick={createNote} variant="primary">Crear primera nota</Button>
+                  <p className="text-lg font-medium text-gray-500 dark:text-gray-400 mb-1">
+                    {searchQuery.trim()
+                      ? 'Ninguna nota coincide con tu búsqueda'
+                      : selectedCategory !== 'Todas' || selectedTags.length > 0 || selectedNoteTags.length > 0
+                        ? 'Ninguna nota en esta vista'
+                        : 'Ninguna nota aún'}
+                  </p>
+                  <p className="text-sm mb-6">
+                    {searchQuery.trim()
+                      ? 'Probá con otras palabras o limpiá el filtro'
+                      : selectedCategory !== 'Todas' || selectedTags.length > 0 || selectedNoteTags.length > 0
+                        ? 'Cambiá el proyecto o los filtros del panel'
+                        : 'Crea una para empezar'}
+                  </p>
+                  {searchQuery.trim() ? (
+                    <Button onClick={() => setSearchQuery('')} variant="secondary">Limpiar búsqueda</Button>
+                  ) : (
+                    <Button onClick={createNote} variant="primary">Crear primera nota</Button>
+                  )}
                 </div>
               ) : (
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
@@ -1365,19 +1509,23 @@ export default function App() {
                 Todas las notas
               </button>
               {/* Barra: categoría + export */}
-              <div className="flex items-center gap-3 pb-4 mb-4 border-b border-gray-100 dark:border-gray-700">
-                <Tag size={16} className="text-gray-400 dark:text-gray-500 flex-shrink-0" />
-                <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide flex-1 min-w-0">
-                  {projects.map(proj => (
-                    <Badge key={proj.name} colorKey={proj.color} active={activeNote.category === proj.name} onClick={() => updateNoteCategory(proj.name)}>{proj.name}</Badge>
-                  ))}
+              <div className="flex flex-col gap-3 pb-4 mb-4 border-b border-gray-100 dark:border-gray-700">
+                <div className="flex items-start gap-2 min-w-0">
+                  <Tag size={16} className="text-gray-400 dark:text-gray-500 flex-shrink-0 mt-2" />
+                  <div className="flex flex-wrap gap-2 flex-1 min-w-0">
+                    {categoryOptions.map(proj => (
+                      <Badge key={proj.name} colorKey={proj.color} active={activeNote.category === proj.name} onClick={() => updateNoteCategory(proj.name)}>{proj.name}</Badge>
+                    ))}
+                  </div>
                 </div>
-                <button type="button" onClick={exportNoteToMarkdown} className="flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-medium text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 border border-indigo-200 dark:border-indigo-800 shrink-0 transition-colors" title="Descargar nota en Markdown">
-                  <Download size={16} /> .md
-                </button>
-                <button type="button" onClick={(e) => deleteNote(e, activeNote.id)} className="flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-medium text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 border border-red-200 dark:border-red-800 shrink-0 transition-colors" title="Eliminar nota">
-                  <Trash2 size={16} /> Eliminar
-                </button>
+                <div className="flex flex-wrap gap-2 sm:justify-end">
+                  <button type="button" onClick={exportNoteToMarkdown} className="flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-medium text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 border border-indigo-200 dark:border-indigo-800 transition-colors" title="Descargar nota en Markdown">
+                    <Download size={16} /> .md
+                  </button>
+                  <button type="button" onClick={(e) => deleteNote(e, activeNote.id)} className="flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-medium text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 border border-red-200 dark:border-red-800 transition-colors" title="Eliminar nota">
+                    <Trash2 size={16} /> Eliminar
+                  </button>
+                </div>
               </div>
               {/* Etiquetas */}
               <div className="flex flex-wrap items-center gap-2 mb-5">
@@ -1397,8 +1545,8 @@ export default function App() {
               <input type="text" value={activeNote.title} onChange={(e) => updateNoteTitle(e.target.value)} placeholder="Título de la nota" className="w-full text-2xl md:text-4xl font-bold text-gray-900 dark:text-white placeholder-gray-300 dark:placeholder-gray-500 border-none focus:outline-none bg-transparent mb-8 tracking-tight leading-tight" />
               {/* Bloques */}
               <div className="space-y-6">
-                {activeNote.blocks.map((block, index) => (
-                  <div key={index} className="group/block relative pl-1 md:pl-4 border-l-2 border-transparent hover:border-gray-200 dark:hover:border-gray-600 rounded-r-lg py-1 transition-colors">
+                {normalizeBlocks(activeNote.blocks).map((block, index) => (
+                  <div key={block.id} className="group/block relative pl-1 md:pl-4 border-l-2 border-transparent hover:border-gray-200 dark:hover:border-gray-600 rounded-r-lg py-1 transition-colors">
                     <div className="absolute -left-2 md:left-0 top-2 opacity-0 group-hover/block:opacity-100 flex flex-col items-center transition-opacity z-10">
                       <button onClick={() => deleteBlock(index)} className="p-2 text-gray-400 dark:text-gray-500 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30 transition-colors bg-white dark:bg-gray-700 rounded-full shadow border border-gray-200 dark:border-gray-600" aria-label="Eliminar bloque"><Trash2 size={14} /></button>
                     </div>
@@ -1406,11 +1554,11 @@ export default function App() {
                       {block.type === 'text' && <TextBlock content={block.content || ''} onChange={(val) => updateBlock(index, { content: val })} />}
                       {block.type === 'checklist' && (
                         <div className="my-4 space-y-2">
-                          {block.items?.map((item, idx) => (
+                          {(block.items || []).map((item, idx) => (
                             <div key={item.id || idx} className="flex items-center gap-3 p-2.5 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors group/item">
                               <input type="checkbox" checked={item.checked || false} onChange={(e) => { const newItems = [...(block.items || [])]; newItems[idx] = { ...newItems[idx], checked: e.target.checked }; updateBlock(index, { items: newItems }); }} className="w-5 h-5 text-indigo-600 rounded focus:ring-indigo-500 border-gray-300 dark:border-gray-600 flex-shrink-0" />
                               <input type="text" value={item.text || ''} onChange={(e) => { const newItems = [...(block.items || [])]; newItems[idx] = { ...newItems[idx], text: e.target.value }; updateBlock(index, { items: newItems }); }} placeholder="Elemento de lista..." className={`flex-1 bg-transparent focus:outline-none text-[15px] ${item.checked ? 'text-gray-400 dark:text-gray-500 line-through' : 'text-gray-700 dark:text-gray-200'}`} />
-                              <button onClick={() => { const newItems = block.items.filter((_, i) => i !== idx); updateBlock(index, { items: newItems.length > 0 ? newItems : [{ id: Date.now(), text: '', checked: false }] }); }} className="opacity-0 group-hover/item:opacity-100 p-1.5 text-gray-400 hover:text-red-500 rounded-lg transition-all" aria-label="Quitar"><X size={16} /></button>
+                              <button onClick={() => { const newItems = (block.items || []).filter((_, i) => i !== idx); updateBlock(index, { items: newItems.length > 0 ? newItems : [{ id: Date.now(), text: '', checked: false }] }); }} className="opacity-0 group-hover/item:opacity-100 p-1.5 text-gray-400 hover:text-red-500 rounded-lg transition-all" aria-label="Quitar"><X size={16} /></button>
                             </div>
                           ))}
                           <button onClick={() => { const newItems = [...(block.items || []), { id: Date.now(), text: '', checked: false }]; updateBlock(index, { items: newItems }); }} className="mt-2 text-sm text-gray-500 dark:text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400 flex items-center gap-2 transition-colors"><Plus size={16} /> Añadir elemento</button>
@@ -1426,7 +1574,7 @@ export default function App() {
                   </div>
                 ))}
               </div>
-              <div className="h-24 cursor-text" onClick={() => { const lastBlock = activeNote.blocks[activeNote.blocks.length - 1]; if (!lastBlock || lastBlock.type !== 'text' || lastBlock.content !== '') { addBlock('text'); } }} aria-hidden />
+              <div className="h-24 cursor-text" onClick={() => { const blocks = normalizeBlocks(activeNote.blocks); const lastBlock = blocks[blocks.length - 1]; if (!lastBlock || lastBlock.type !== 'text' || (lastBlock.content && lastBlock.content.replace(/<br\s*\/?>/gi, '').trim() !== '')) { addBlock('text'); } }} aria-hidden />
             </div>
           </div>
         ) : (

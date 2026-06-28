@@ -293,3 +293,32 @@ INSERT INTO mis_empresas_data (id, items)
 VALUES ('default', '[]'::jsonb)
 ON CONFLICT (id) DO NOTHING;
 
+-- Entradas: kanban de ingresos por unidad (JSONB cards)
+CREATE TABLE IF NOT EXISTS entradas_data (
+  id TEXT PRIMARY KEY DEFAULT 'default',
+  cards JSONB NOT NULL DEFAULT '[]'::jsonb,
+  columns JSONB NOT NULL DEFAULT '[]'::jsonb,
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'entradas_data' AND column_name = 'columns') THEN
+    ALTER TABLE entradas_data ADD COLUMN columns JSONB NOT NULL DEFAULT '[]'::jsonb;
+  END IF;
+END $$;
+
+DROP TRIGGER IF EXISTS update_entradas_data_updated_at ON entradas_data;
+CREATE TRIGGER update_entradas_data_updated_at BEFORE UPDATE ON entradas_data
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+ALTER TABLE entradas_data ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Allow all operations on entradas_data" ON entradas_data;
+CREATE POLICY "Allow all operations on entradas_data" ON entradas_data
+    FOR ALL USING (true) WITH CHECK (true);
+
+INSERT INTO entradas_data (id, cards)
+VALUES ('default', '[]'::jsonb)
+ON CONFLICT (id) DO NOTHING;
+

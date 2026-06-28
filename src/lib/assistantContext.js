@@ -39,7 +39,12 @@ function formatBilleteraRow(row) {
   if (deudas.length) {
     lines.push('- Deudas (debés):');
     deudas.slice(0, 25).forEach((d) => {
-      lines.push(`  · ${d.acreedor || '?'} | ${d.concepto || ''} | $${Number(d.monto) || 0} | vence ${d.vencimiento || '-'}`);
+      const cuota = d.enCuotas && d.mes
+        ? ` | cuota ${d.cuotaNum || '?'}/${d.cuotasTotal || '?'} mes ${d.mes}`
+        : '';
+      const estado = d.pagado ? ' [PAGADA]' : '';
+      const prio = d.prioridad ? ` prio:${d.prioridad}` : '';
+      lines.push(`  · [${d.etiqueta || 'sin etiqueta'}]${estado}${prio} ${d.acreedor || '?'} | ${d.concepto || ''} | $${Number(d.monto) || 0} | vence ${d.vencimiento || '-'}${cuota}${d.notas ? ` | notas: ${String(d.notas).slice(0, 80)}` : ''}`);
     });
     lines.push(`- Total deudas: $${Math.round(sumMontos(deudas))}`);
   }
@@ -189,6 +194,42 @@ const EMP_STATUS_LABELS = {
   cerrada: 'Cerrada',
 };
 
+const ENTRADA_COL_LABELS = {
+  otras: 'Otras',
+  sw: 'SW',
+  cosecha: 'Cosecha Creativa',
+  dev: 'Dev',
+  plot: 'Plot Center',
+  acero: 'Acero y Rocka',
+};
+
+const ENTRADA_ESTADO_LABELS = {
+  activo: 'Activo',
+  proyeccion: 'Proyección',
+  pausado: 'Pausado',
+  hecho: 'Hecho',
+};
+
+function formatEntradasCards(cards, columns) {
+  if (!Array.isArray(cards) || cards.length === 0) return '### Entradas\n- Ninguna entrada registrada.';
+  const labelMap = {};
+  (Array.isArray(columns) ? columns : []).forEach((col) => {
+    if (col?.id) labelMap[col.id] = col.label || col.id;
+  });
+  const colLabel = (id) => labelMap[id] || ENTRADA_COL_LABELS[id] || id || '-';
+  const lines = ['### Entradas (kanban tareas y proyección por unidad)'];
+  cards.slice(0, 25).forEach((c) => {
+    const col = colLabel(c.columnId);
+    const est = ENTRADA_ESTADO_LABELS[c.estado] || c.estado || '-';
+    lines.push(`- [${col}] ${c.titulo || 'Sin título'} · ${est}${c.mesProyeccion ? ` · mes ${c.mesProyeccion}` : ''}`);
+    if (c.proyeccion) lines.push(`  Proyección: ${String(c.proyeccion).slice(0, 160)}`);
+    const tareas = Array.isArray(c.tareas) ? c.tareas : [];
+    tareas.slice(0, 5).forEach((t) => lines.push(`  · [${t.done ? 'x' : ' '}] ${(t.text || '').slice(0, 80)}`));
+  });
+  if (cards.length > 25) lines.push(`- … y ${cards.length - 25} más`);
+  return lines.join('\n');
+}
+
 function formatMisEmpresasItems(items) {
   if (!Array.isArray(items) || items.length === 0) return '### Mis empresas\n- Ninguna empresa registrada.';
   const lines = ['### Mis empresas (fichas ampliadas)'];
@@ -268,6 +309,13 @@ function fromLocalStorage() {
       if (j?.items && Array.isArray(j.items)) parts.push(formatMisEmpresasItems(j.items));
     }
   } catch (_) {}
+  try {
+    const ent = localStorage.getItem('alenotes_entradas');
+    if (ent) {
+      const j = JSON.parse(ent);
+      if (j?.cards && Array.isArray(j.cards)) parts.push(formatEntradasCards(j.cards, j.columns));
+    }
+  } catch (_) {}
   return parts.filter(Boolean).join('\n\n');
 }
 
@@ -323,6 +371,11 @@ export async function buildAssistantContext() {
   try {
     const { data: emp } = await supabase.from('mis_empresas_data').select('items').eq('id', 'default').maybeSingle();
     if (emp?.items && Array.isArray(emp.items)) parts.push(formatMisEmpresasItems(emp.items));
+  } catch (_) {}
+
+  try {
+    const { data: ent } = await supabase.from('entradas_data').select('cards, columns').eq('id', 'default').maybeSingle();
+    if (ent?.cards && Array.isArray(ent.cards)) parts.push(formatEntradasCards(ent.cards, ent.columns));
   } catch (_) {}
 
   let text = parts.filter(Boolean).join('\n\n');

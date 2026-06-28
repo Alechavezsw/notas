@@ -27,6 +27,10 @@ import {
   Receipt,
   CreditCard,
   UserCircle,
+  Copy,
+  Check,
+  Search,
+  AlertTriangle,
 } from 'lucide-react';
 
 const STORAGE_KEY = 'alenotes_billetera';
@@ -39,6 +43,54 @@ const supabase = supabaseUrl && supabaseKey ? createClient(supabaseUrl, supabase
 const COLORS = { actual: '#059669', aCobrar: '#d97706', total: '#4f46e5' };
 const CATEGORIAS = ['Efectivo', 'Banco', 'Inversión', 'Otro'];
 const GASTOS_CATEGORIAS = ['Comida', 'Transporte', 'Servicios', 'Ocio', 'Salud', 'Compras', 'Otro'];
+const DEUDAS_ETIQUETAS = [
+  'Empleados',
+  'Servicios',
+  'Servicios Cosecha Creativa',
+  'Impuestos',
+  'Monotributo / AFIP',
+  'Tarjetas',
+  'Préstamos',
+  'Alquiler',
+  'Proveedores',
+  'Banco',
+  'Seguros',
+  'Personal',
+  'Inversión',
+  'Otro',
+];
+const DEUDAS_PRIORIDAD = ['Alta', 'Media', 'Baja'];
+
+function getMesActual() {
+  return new Date().toISOString().slice(0, 7);
+}
+
+function getMesSiguiente(mesKey) {
+  if (!mesKey) return getMesActual();
+  const [y, m] = mesKey.split('-').map(Number);
+  const d = new Date(y, m - 1, 1);
+  d.setMonth(d.getMonth() + 1);
+  return d.toISOString().slice(0, 7);
+}
+
+function diasHastaVencimiento(vencimiento) {
+  if (!vencimiento) return null;
+  const hoy = new Date();
+  hoy.setHours(0, 0, 0, 0);
+  const v = new Date(`${vencimiento}T12:00:00`);
+  return Math.ceil((v - hoy) / (1000 * 60 * 60 * 24));
+}
+
+function formatMesLabel(mesKey) {
+  if (!mesKey || mesKey === '_unico') return 'Pago único';
+  const [y, m] = mesKey.split('-');
+  const d = new Date(Number(y), Number(m) - 1, 1);
+  return d.toLocaleDateString('es-AR', { month: 'long', year: 'numeric' });
+}
+
+function sumMontos(items) {
+  return items.reduce((sum, it) => sum + (Number(it.monto) || 0), 0);
+}
 
 function formatMoney(num) {
   return new Intl.NumberFormat('es-AR', {
@@ -64,17 +116,7 @@ function EntradaLista({
 }) {
   const ring = focusRing === 'slate' ? 'focus:ring-slate-200' : focusRing === 'teal' ? 'focus:ring-teal-200' : 'focus:ring-emerald-200';
   const ringBorder = focusRing === 'slate' ? 'focus:border-slate-300' : focusRing === 'teal' ? 'focus:border-teal-300' : 'focus:border-emerald-300';
-
-  const ExtraInput = ({ item }) =>
-    extraField ? (
-      <input
-        type="text"
-        placeholder={extraField.placeholder}
-        value={item[extraField.key] || ''}
-        onChange={(e) => onUpdate(item.id, extraField.key, e.target.value)}
-        className={`flex-1 min-w-[120px] max-w-[200px] px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 ${ring} ${ringBorder}`}
-      />
-    ) : null;
+  const extraInputClass = `flex-1 min-w-[120px] max-w-[200px] px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 ${ring} ${ringBorder}`;
 
   return (
     <div className="space-y-2">
@@ -98,7 +140,15 @@ function EntradaLista({
                 ))}
               </select>
             )}
-            {extraField && extraFieldFirst && <ExtraInput item={item} />}
+            {extraField && extraFieldFirst && (
+              <input
+                type="text"
+                placeholder={extraField.placeholder}
+                value={item[extraField.key] || ''}
+                onChange={(e) => onUpdate(item.id, extraField.key, e.target.value)}
+                className={extraInputClass}
+              />
+            )}
             <input
               type="text"
               placeholder="Concepto"
@@ -106,7 +156,15 @@ function EntradaLista({
               onChange={(e) => onUpdate(item.id, 'concepto', e.target.value)}
               className={`flex-1 min-w-[100px] px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 ${ring} ${ringBorder}`}
             />
-            {extraField && !extraFieldFirst && <ExtraInput item={item} />}
+            {extraField && !extraFieldFirst && (
+              <input
+                type="text"
+                placeholder={extraField.placeholder}
+                value={item[extraField.key] || ''}
+                onChange={(e) => onUpdate(item.id, extraField.key, e.target.value)}
+                className={extraInputClass}
+              />
+            )}
             <div className="flex items-center gap-1">
               <span className="text-gray-500 text-sm">$</span>
               <input
@@ -163,6 +221,368 @@ function EntradaLista({
   );
 }
 
+function ListaDeudas({ items, onAdd, onUpdate, onDelete, onDuplicateNextMonth }) {
+  const mesActual = getMesActual();
+  const [filtroMes, setFiltroMes] = useState('todos');
+  const [filtroEtiqueta, setFiltroEtiqueta] = useState('');
+  const [filtroEstado, setFiltroEstado] = useState('pendientes');
+  const [busqueda, setBusqueda] = useState('');
+
+  const mesesDisponibles = useMemo(() => {
+    const set = new Set([mesActual]);
+    items.forEach((it) => {
+      if (it.enCuotas && it.mes) set.add(it.mes);
+    });
+    return [...set].sort((a, b) => b.localeCompare(a));
+  }, [items, mesActual]);
+
+  const itemsFiltrados = useMemo(() => {
+    const q = busqueda.trim().toLowerCase();
+    return items.filter((item) => {
+      if (filtroEstado === 'pendientes' && item.pagado) return false;
+      if (filtroEstado === 'pagadas' && !item.pagado) return false;
+      if (filtroEtiqueta === '__sin__') {
+        if (item.etiqueta) return false;
+      } else if (filtroEtiqueta && item.etiqueta !== filtroEtiqueta) return false;
+      if (filtroMes === 'mes_actual') {
+        const key = item.enCuotas && item.mes ? item.mes : '_unico';
+        if (key !== mesActual) return false;
+      } else if (filtroMes !== 'todos') {
+        const key = item.enCuotas && item.mes ? item.mes : '_unico';
+        if (key !== filtroMes) return false;
+      }
+      if (q) {
+        const hay = [item.acreedor, item.concepto, item.notas, item.etiqueta].some((v) =>
+          String(v || '').toLowerCase().includes(q)
+        );
+        if (!hay) return false;
+      }
+      return true;
+    });
+  }, [items, filtroEstado, filtroEtiqueta, filtroMes, busqueda, mesActual]);
+
+  const resumenEtiquetas = useMemo(() => {
+    const map = new Map();
+    itemsFiltrados
+      .filter((it) => !it.pagado)
+      .forEach((it) => {
+        const e = it.etiqueta || 'Sin etiqueta';
+        map.set(e, (map.get(e) || 0) + (Number(it.monto) || 0));
+      });
+    return [...map.entries()].sort((a, b) => b[1] - a[1]);
+  }, [itemsFiltrados]);
+
+  const grupos = useMemo(() => {
+    const map = new Map();
+    itemsFiltrados.forEach((item) => {
+      const key = item.enCuotas && item.mes ? item.mes : '_unico';
+      if (!map.has(key)) map.set(key, []);
+      map.get(key).push(item);
+    });
+    const keys = [...map.keys()].sort((a, b) => {
+      if (a === '_unico') return 1;
+      if (b === '_unico') return -1;
+      if (a === mesActual) return -1;
+      if (b === mesActual) return 1;
+      return b.localeCompare(a);
+    });
+    return keys.map((key) => ({ key, label: formatMesLabel(key), items: map.get(key) }));
+  }, [itemsFiltrados, mesActual]);
+
+  const renderFila = (item) => {
+    const dias = diasHastaVencimiento(item.vencimiento);
+    const vencida = !item.pagado && dias != null && dias < 0;
+    const proxima = !item.pagado && dias != null && dias >= 0 && dias <= 7;
+    const rowClass = item.pagado
+      ? 'opacity-60 bg-gray-50/80 border-gray-100'
+      : vencida
+        ? 'bg-red-50/40 border-red-200'
+        : proxima
+          ? 'bg-amber-50/40 border-amber-200'
+          : 'bg-white/80 border-gray-100';
+
+    return (
+      <div key={item.id} className={`rounded-xl border transition-all hover:bg-white ${rowClass}`}>
+        <div className="flex flex-wrap items-center gap-2 p-3">
+          <button
+            type="button"
+            onClick={() => onUpdate(item.id, 'pagado', !item.pagado)}
+            className={`p-2 rounded-lg border transition-colors shrink-0 ${
+              item.pagado
+                ? 'bg-emerald-100 border-emerald-300 text-emerald-700'
+                : 'border-gray-200 text-gray-400 hover:border-emerald-300 hover:text-emerald-600 hover:bg-emerald-50'
+            }`}
+            title={item.pagado ? 'Marcar pendiente' : 'Marcar pagada'}
+          >
+            <Check size={16} />
+          </button>
+          <select
+            value={item.etiqueta || ''}
+            onChange={(e) => onUpdate(item.id, 'etiqueta', e.target.value)}
+            className="px-2 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-slate-200 w-[11rem] shrink-0"
+            title="Etiqueta"
+          >
+            <option value="">Etiqueta</option>
+            {DEUDAS_ETIQUETAS.map((e) => (
+              <option key={e} value={e}>{e}</option>
+            ))}
+          </select>
+          <select
+            value={item.prioridad || ''}
+            onChange={(e) => onUpdate(item.id, 'prioridad', e.target.value)}
+            className={`px-2 py-2 rounded-lg border text-sm focus:outline-none focus:ring-2 focus:ring-slate-200 w-20 shrink-0 ${
+              item.prioridad === 'Alta'
+                ? 'border-red-200 bg-red-50 text-red-700'
+                : item.prioridad === 'Media'
+                  ? 'border-amber-200 bg-amber-50 text-amber-800'
+                  : 'border-gray-200'
+            }`}
+            title="Prioridad"
+          >
+            <option value="">Prio.</option>
+            {DEUDAS_PRIORIDAD.map((p) => (
+              <option key={p} value={p}>{p}</option>
+            ))}
+          </select>
+          <input
+            type="text"
+            placeholder="Acreedor / a quién debés"
+            value={item.acreedor || ''}
+            onChange={(e) => onUpdate(item.id, 'acreedor', e.target.value)}
+            className="flex-1 min-w-[120px] max-w-[200px] px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-slate-200 focus:border-slate-300"
+          />
+          <input
+            type="text"
+            placeholder="Concepto"
+            value={item.concepto || ''}
+            onChange={(e) => onUpdate(item.id, 'concepto', e.target.value)}
+            className="flex-1 min-w-[100px] px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-slate-200 focus:border-slate-300"
+          />
+          <div className="flex items-center gap-1">
+            <span className="text-gray-500 text-sm">$</span>
+            <input
+              type="number"
+              placeholder="0"
+              min={0}
+              value={item.monto ?? ''}
+              onChange={(e) => onUpdate(item.id, 'monto', e.target.value)}
+              className="w-24 px-3 py-2 rounded-lg border border-gray-200 text-sm font-medium tabular-nums focus:outline-none focus:ring-2 focus:ring-slate-200 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+            />
+          </div>
+          <label className="flex items-center gap-1.5 px-2 py-2 rounded-lg border border-gray-200 text-xs text-gray-600 cursor-pointer hover:bg-slate-50 whitespace-nowrap">
+            <input
+              type="checkbox"
+              checked={!!item.enCuotas}
+              onChange={(e) => onUpdate(item.id, 'enCuotas', e.target.checked)}
+              className="rounded border-gray-300 text-slate-600 focus:ring-slate-300"
+            />
+            Cuotas
+          </label>
+          {item.enCuotas && (
+            <>
+              <input
+                type="month"
+                value={item.mes || mesActual}
+                onChange={(e) => onUpdate(item.id, 'mes', e.target.value)}
+                className="px-2 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-slate-200"
+                title="Mes de la cuota"
+              />
+              <div className="flex items-center gap-1 text-sm text-gray-500">
+                <input
+                  type="number"
+                  min={1}
+                  placeholder="Nº"
+                  value={item.cuotaNum ?? ''}
+                  onChange={(e) => onUpdate(item.id, 'cuotaNum', e.target.value)}
+                  className="w-12 px-2 py-2 rounded-lg border border-gray-200 text-sm tabular-nums focus:outline-none focus:ring-2 focus:ring-slate-200 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                  title="Cuota actual"
+                />
+                <span>/</span>
+                <input
+                  type="number"
+                  min={1}
+                  placeholder="Total"
+                  value={item.cuotasTotal ?? ''}
+                  onChange={(e) => onUpdate(item.id, 'cuotasTotal', e.target.value)}
+                  className="w-12 px-2 py-2 rounded-lg border border-gray-200 text-sm tabular-nums focus:outline-none focus:ring-2 focus:ring-slate-200 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                  title="Total de cuotas"
+                />
+              </div>
+            </>
+          )}
+          <div className="flex items-center gap-1">
+            <Calendar size={14} className="text-gray-400" />
+            <input
+              type="date"
+              value={item.fecha || ''}
+              onChange={(e) => onUpdate(item.id, 'fecha', e.target.value)}
+              className="px-2 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-amber-200"
+            />
+          </div>
+          <div className="flex items-center gap-1" title="Vencimiento">
+            <span className="text-[10px] text-gray-400 uppercase whitespace-nowrap">Vence</span>
+            <input
+              type="date"
+              value={item.vencimiento || ''}
+              onChange={(e) => onUpdate(item.id, 'vencimiento', e.target.value)}
+              className={`px-2 py-2 rounded-lg border text-sm focus:outline-none focus:ring-2 focus:ring-slate-200 ${
+                vencida ? 'border-red-300 bg-red-50' : proxima ? 'border-amber-300 bg-amber-50' : 'border-gray-200'
+              }`}
+            />
+            {vencida && (
+              <span className="flex items-center gap-0.5 text-[10px] text-red-600 font-medium whitespace-nowrap">
+                <AlertTriangle size={12} />
+                Vencida
+              </span>
+            )}
+            {proxima && (
+              <span className="text-[10px] text-amber-700 font-medium whitespace-nowrap">
+                {dias === 0 ? 'Hoy' : `${dias}d`}
+              </span>
+            )}
+          </div>
+          {item.enCuotas && onDuplicateNextMonth && (
+            <button
+              type="button"
+              onClick={() => onDuplicateNextMonth(item.id)}
+              className="p-2 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
+              title="Crear cuota del mes siguiente"
+            >
+              <Copy size={16} />
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={() => onDelete(item.id)}
+            className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+            title="Eliminar"
+          >
+            <Trash2 size={18} />
+          </button>
+        </div>
+        <div className="px-3 pb-3">
+          <input
+            type="text"
+            placeholder="Notas (opcional): CBU, referencia, observaciones…"
+            value={item.notas || ''}
+            onChange={(e) => onUpdate(item.id, 'notas', e.target.value)}
+            className="w-full px-3 py-2 rounded-lg border border-gray-100 bg-gray-50/50 text-xs text-gray-600 focus:outline-none focus:ring-2 focus:ring-slate-200 focus:bg-white"
+          />
+        </div>
+      </div>
+    );
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-wrap gap-2 p-3 rounded-xl bg-slate-50/80 border border-slate-100">
+        <div className="relative flex-1 min-w-[140px]">
+          <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
+          <input
+            type="text"
+            placeholder="Buscar acreedor, concepto…"
+            value={busqueda}
+            onChange={(e) => setBusqueda(e.target.value)}
+            className="w-full pl-8 pr-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-slate-200"
+          />
+        </div>
+        <select
+          value={filtroMes}
+          onChange={(e) => setFiltroMes(e.target.value)}
+          className="px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-slate-200"
+        >
+          <option value="todos">Todos los meses</option>
+          <option value="mes_actual">Mes actual</option>
+          {mesesDisponibles.map((m) => (
+            <option key={m} value={m}>{formatMesLabel(m)}</option>
+          ))}
+          <option value="_unico">Solo pago único</option>
+        </select>
+        <select
+          value={filtroEtiqueta}
+          onChange={(e) => setFiltroEtiqueta(e.target.value)}
+          className="px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-slate-200 max-w-[11rem]"
+        >
+          <option value="">Todas las etiquetas</option>
+          {DEUDAS_ETIQUETAS.map((e) => (
+            <option key={e} value={e}>{e}</option>
+          ))}
+        </select>
+        <select
+          value={filtroEstado}
+          onChange={(e) => setFiltroEstado(e.target.value)}
+          className="px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-slate-200"
+        >
+          <option value="pendientes">Pendientes</option>
+          <option value="todas">Todas</option>
+          <option value="pagadas">Pagadas</option>
+        </select>
+      </div>
+
+      {resumenEtiquetas.length > 0 && (
+        <div className="flex flex-wrap gap-2">
+          {resumenEtiquetas.map(([etiqueta, total]) => {
+            const filtroVal = etiqueta === 'Sin etiqueta' ? '__sin__' : etiqueta;
+            const activo = filtroEtiqueta === filtroVal;
+            return (
+            <button
+              key={etiqueta}
+              type="button"
+              onClick={() => setFiltroEtiqueta(activo ? '' : filtroVal)}
+              className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-colors ${
+                activo
+                  ? 'bg-slate-700 text-white border-slate-700'
+                  : 'bg-white text-slate-700 border-slate-200 hover:border-slate-400'
+              }`}
+            >
+              {etiqueta}: ${formatMoney(total)}
+            </button>
+            );
+          })}
+        </div>
+      )}
+
+      {itemsFiltrados.length === 0 ? (
+        <p className="text-sm text-gray-400 py-4 text-center">
+          {items.length === 0
+            ? 'No registraste deudas. Agregá etiqueta, acreedor, concepto y monto.'
+            : 'Ninguna deuda coincide con los filtros.'}
+        </p>
+      ) : (
+        grupos.map(({ key, label, items: grupoItems }) => (
+          <div key={key}>
+            <div className="flex items-center justify-between mb-2 px-1">
+              <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-600">
+                {label}
+                {key === mesActual && (
+                  <span className="ml-2 normal-case font-medium text-emerald-600">· mes actual</span>
+                )}
+              </h3>
+              <span className="text-xs font-bold text-slate-700 tabular-nums">
+                ${formatMoney(sumMontos(grupoItems.filter((it) => !it.pagado)))}
+                {grupoItems.some((it) => it.pagado) && (
+                  <span className="text-gray-400 font-normal ml-1">
+                    (pagado ${formatMoney(sumMontos(grupoItems.filter((it) => it.pagado)))})
+                  </span>
+                )}
+              </span>
+            </div>
+            <div className="space-y-2">{grupoItems.map(renderFila)}</div>
+          </div>
+        ))
+      )}
+      <button
+        type="button"
+        onClick={onAdd}
+        className="w-full flex items-center justify-center gap-2 py-3 rounded-xl border-2 border-dashed border-gray-200 text-gray-500 hover:border-slate-300 hover:text-slate-600 hover:bg-slate-50/50 transition-all text-sm font-medium"
+      >
+        <Plus size={18} />
+        Agregar deuda
+      </button>
+    </div>
+  );
+}
+
 export default function ContadorDinero() {
   const [dineroActual, setDineroActual] = useState([]);
   const [aCobrar, setACobrar] = useState([]);
@@ -191,9 +611,24 @@ export default function ContadorDinero() {
     () => gastos.reduce((sum, it) => sum + (Number(it.monto) || 0), 0),
     [gastos]
   );
-  const totalDeudas = useMemo(
-    () => deudas.reduce((sum, it) => sum + (Number(it.monto) || 0), 0),
+  const mesActualDeudas = getMesActual();
+  const deudasPendientes = useMemo(() => deudas.filter((d) => !d.pagado), [deudas]);
+  const totalDeudas = useMemo(() => sumMontos(deudasPendientes), [deudasPendientes]);
+  const totalDeudasPagadas = useMemo(
+    () => sumMontos(deudas.filter((d) => d.pagado)),
     [deudas]
+  );
+  const totalDeudasMes = useMemo(
+    () => sumMontos(deudasPendientes.filter((it) => it.enCuotas && it.mes === mesActualDeudas)),
+    [deudasPendientes, mesActualDeudas]
+  );
+  const deudasVencidas = useMemo(
+    () =>
+      deudasPendientes.filter((d) => {
+        const dias = diasHastaVencimiento(d.vencimiento);
+        return dias != null && dias < 0;
+      }).length,
+    [deudasPendientes]
   );
   const totalDeudores = useMemo(
     () => deudores.reduce((sum, it) => sum + (Number(it.monto) || 0), 0),
@@ -329,13 +764,67 @@ export default function ContadorDinero() {
     setter((prev) => [...prev, { id: Date.now(), concepto: '', monto: '', fecha: '', ...(withCat ? { categoria: '' } : {}) }]);
   };
   const addDeuda = () => {
-    setDeudas((prev) => [...prev, { id: Date.now(), acreedor: '', concepto: '', monto: '', fecha: '', vencimiento: '' }]);
+    setDeudas((prev) => [
+      ...prev,
+      {
+        id: Date.now(),
+        etiqueta: '',
+        acreedor: '',
+        concepto: '',
+        monto: '',
+        fecha: '',
+        vencimiento: '',
+        enCuotas: false,
+        mes: '',
+        cuotaNum: '',
+        cuotasTotal: '',
+        pagado: false,
+        prioridad: '',
+        notas: '',
+      },
+    ]);
+  };
+  const duplicateDeudaMesSiguiente = (id) => {
+    setDeudas((prev) => {
+      const item = prev.find((it) => it.id === id);
+      if (!item || !item.enCuotas) return prev;
+      const nextMes = getMesSiguiente(item.mes || getMesActual());
+      const nextCuota = item.cuotaNum ? Number(item.cuotaNum) + 1 : '';
+      return [
+        ...prev,
+        {
+          ...item,
+          id: Date.now(),
+          mes: nextMes,
+          cuotaNum: nextCuota !== '' && !Number.isNaN(nextCuota) ? String(nextCuota) : '',
+          pagado: false,
+          vencimiento: '',
+        },
+      ];
+    });
   };
   const addDeudor = () => {
     setDeudores((prev) => [...prev, { id: Date.now(), nombre: '', concepto: '', monto: '', fecha: '' }]);
   };
   const updateEntrada = (setter, id, field, value) => {
     setter((prev) => prev.map((it) => (it.id === id ? { ...it, [field]: value } : it)));
+  };
+  const updateDeuda = (id, field, value) => {
+    if (field === 'enCuotas') {
+      setDeudas((prev) =>
+        prev.map((it) => {
+          if (it.id !== id) return it;
+          const enCuotas = !!value;
+          return {
+            ...it,
+            enCuotas,
+            mes: enCuotas && !it.mes ? getMesActual() : it.mes,
+          };
+        })
+      );
+      return;
+    }
+    updateEntrada(setDeudas, id, field, value);
   };
   const deleteEntrada = (setter, id) => {
     setter((prev) => prev.filter((it) => it.id !== id));
@@ -659,21 +1148,34 @@ export default function ContadorDinero() {
                 <p className="text-xs text-gray-500">Préstamos, tarjetas, cuotas que debés pagar</p>
               </div>
             </div>
-            <span className="text-lg font-bold text-slate-700 tabular-nums">${formatMoney(totalDeudas)}</span>
+            <div className="text-right">
+              <span className="text-lg font-bold text-slate-700 tabular-nums">${formatMoney(totalDeudas)}</span>
+              <p className="text-xs text-slate-500 mt-0.5">Pendientes</p>
+              {totalDeudasMes > 0 && (
+                <p className="text-xs text-slate-500">
+                  Cuotas {formatMesLabel(mesActualDeudas)}: ${formatMoney(totalDeudasMes)}
+                </p>
+              )}
+              {totalDeudasPagadas > 0 && (
+                <p className="text-xs text-emerald-600">
+                  Pagadas: ${formatMoney(totalDeudasPagadas)}
+                </p>
+              )}
+              {deudasVencidas > 0 && (
+                <p className="text-xs text-red-600 font-medium flex items-center justify-end gap-1">
+                  <AlertTriangle size={12} />
+                  {deudasVencidas} vencida{deudasVencidas !== 1 ? 's' : ''}
+                </p>
+              )}
+            </div>
           </div>
           <div className="p-4">
-            <EntradaLista
+            <ListaDeudas
               items={deudas}
               onAdd={addDeuda}
-              onUpdate={(id, field, value) => updateEntrada(setDeudas, id, field, value)}
+              onUpdate={updateDeuda}
               onDelete={(id) => deleteEntrada(setDeudas, id)}
-              emptyMessage="No registraste deudas. Agregá a quién debés, el concepto y el monto."
-              addLabel="Agregar deuda"
-              withDate
-              extraField={{ key: 'acreedor', placeholder: 'Acreedor / a quién debés' }}
-              extraFieldFirst
-              withVencimiento
-              focusRing="slate"
+              onDuplicateNextMonth={duplicateDeudaMesSiguiente}
             />
           </div>
         </section>

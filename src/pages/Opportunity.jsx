@@ -19,6 +19,8 @@ import {
   TrendingUp,
   Archive,
   MessageSquare,
+  Search,
+  X,
 } from 'lucide-react';
 
 const STORAGE_KEY = 'alenotes_opportunity';
@@ -83,6 +85,22 @@ function stageMeta(id) {
   return STAGES.find((s) => s.id === id) || STAGES[0];
 }
 
+function itemMatchesSearch(it, query) {
+  const q = query.trim().toLowerCase();
+  if (!q) return true;
+  const fields = [
+    it.title,
+    it.companyOrClient,
+    it.notes,
+    it.link,
+    it.valueHint,
+    kindMeta(it.kind).label,
+    stageMeta(it.stage).label,
+    ...(it.nextActions || []).map((a) => a.text),
+  ];
+  return fields.some((f) => String(f || '').toLowerCase().includes(q));
+}
+
 function newItem() {
   return {
     id: `op-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
@@ -105,6 +123,7 @@ export default function Opportunity() {
   const [saveStatus, setSaveStatus] = useState('saved');
   const [filterKind, setFilterKind] = useState('todas');
   const [filterStage, setFilterStage] = useState('activas');
+  const [busqueda, setBusqueda] = useState('');
   const saveTimeoutRef = useRef(null);
 
   useEffect(() => {
@@ -238,11 +257,20 @@ export default function Opportunity() {
       if (filterKind !== 'todas' && it.kind !== filterKind) return false;
       if (filterStage === 'activas' && (it.stage === 'ganada' || it.stage === 'archivada')) return false;
       if (filterStage === 'ganadas' && it.stage !== 'ganada') return false;
-      if (filterStage === 'todas_etapas') return true;
-      if (['idea', 'contacto', 'propuesta', 'negociacion', 'ganada', 'archivada'].includes(filterStage) && it.stage !== filterStage) return false;
+      if (
+        filterStage !== 'activas' &&
+        filterStage !== 'ganadas' &&
+        filterStage !== 'todas_etapas' &&
+        it.stage !== filterStage
+      ) {
+        return false;
+      }
+      if (!itemMatchesSearch(it, busqueda)) return false;
       return true;
     });
-  }, [items, filterKind, filterStage]);
+  }, [items, filterKind, filterStage, busqueda]);
+
+  const hayBusqueda = busqueda.trim().length > 0;
 
   return (
     <div className="min-h-screen bg-[#0c0a14] text-gray-100 selection:bg-fuchsia-500/40">
@@ -320,6 +348,37 @@ export default function Opportunity() {
           </div>
         </header>
 
+        <div className="relative mb-8">
+          <Search
+            size={18}
+            className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none"
+          />
+          <input
+            type="search"
+            value={busqueda}
+            onChange={(e) => setBusqueda(e.target.value)}
+            placeholder="Buscar por título, cliente, notas, enlace, valor o próximos pasos…"
+            className="w-full rounded-2xl border border-white/10 bg-white/[0.06] pl-11 pr-11 py-3.5 text-sm text-gray-100 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-fuchsia-500/40 focus:border-fuchsia-500/30 transition-shadow"
+          />
+          {hayBusqueda && (
+            <button
+              type="button"
+              onClick={() => setBusqueda('')}
+              className="absolute right-3 top-1/2 -translate-y-1/2 p-1.5 rounded-lg text-gray-500 hover:text-white hover:bg-white/10 transition-colors"
+              aria-label="Limpiar búsqueda"
+            >
+              <X size={16} />
+            </button>
+          )}
+          {hayBusqueda && !isLoading && (
+            <p className="mt-2 text-xs text-gray-500">
+              {filtered.length === 0
+                ? 'Ninguna oportunidad coincide con la búsqueda.'
+                : `${filtered.length} resultado${filtered.length !== 1 ? 's' : ''}`}
+            </p>
+          )}
+        </div>
+
         <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-center gap-3 mb-8">
           <button
             type="button"
@@ -378,14 +437,28 @@ export default function Opportunity() {
         ) : filtered.length === 0 ? (
           <div className="text-center py-16 rounded-3xl border border-dashed border-white/15 bg-white/[0.02]">
             <Target className="mx-auto text-gray-600 mb-4" size={48} />
-            <p className="text-gray-400 mb-2">No hay oportunidades en esta vista.</p>
-            <button
-              type="button"
-              onClick={addItem}
-              className="text-fuchsia-400 hover:text-fuchsia-300 text-sm font-medium"
-            >
-              Crear la primera
-            </button>
+            <p className="text-gray-400 mb-2">
+              {hayBusqueda
+                ? 'Ninguna oportunidad coincide con tu búsqueda.'
+                : 'No hay oportunidades en esta vista.'}
+            </p>
+            {hayBusqueda ? (
+              <button
+                type="button"
+                onClick={() => setBusqueda('')}
+                className="text-fuchsia-400 hover:text-fuchsia-300 text-sm font-medium"
+              >
+                Limpiar búsqueda
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={addItem}
+                className="text-fuchsia-400 hover:text-fuchsia-300 text-sm font-medium"
+              >
+                Crear la primera
+              </button>
+            )}
           </div>
         ) : (
           <ul className="grid gap-6 sm:grid-cols-2">
