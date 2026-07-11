@@ -33,6 +33,9 @@ import {
   AlertTriangle,
   ChevronDown,
   ShoppingBag,
+  ChevronLeft,
+  ChevronRight,
+  Calendar,
 } from 'lucide-react';
 
 const STORAGE_KEY = 'alenotes_billetera';
@@ -54,6 +57,47 @@ function loadSectionsOpen() {
     /* ignore */
   }
   return { ...DEFAULT_SECTIONS_OPEN };
+}
+
+function parseMesVista(raw, mesActual) {
+  if (typeof raw === 'string' && /^\d{4}-\d{2}$/.test(raw)) {
+    return raw > mesActual ? mesActual : raw;
+  }
+  return mesActual;
+}
+
+function mergeMesesHistorial(stored, gastos, deudas, aCobrar) {
+  const fromData = collectMesesHistorial(gastos, deudas, aCobrar);
+  const extra = Array.isArray(stored) ? stored.filter((m) => typeof m === 'string') : [];
+  return [...new Set([...fromData, ...extra])].sort((a, b) => b.localeCompare(a));
+}
+
+function getMesAnterior(mesKey) {
+  if (!mesKey) return getMesActual();
+  const [y, m] = mesKey.split('-').map(Number);
+  const d = new Date(y, m - 2, 1);
+  return d.toISOString().slice(0, 7);
+}
+
+function collectMesesHistorial(gastos, deudas, aCobrar) {
+  const set = new Set([getMesActual()]);
+  gastos.forEach((g) => {
+    if (g.fecha) set.add(g.fecha.slice(0, 7));
+  });
+  deudas.forEach((d) => {
+    if (d.enCuotas && d.mes) set.add(d.mes);
+    if (d.fechaPago) set.add(d.fechaPago.slice(0, 7));
+    if (d.fecha) set.add(d.fecha.slice(0, 7));
+  });
+  aCobrar.forEach((a) => {
+    if (a.fecha) set.add(a.fecha.slice(0, 7));
+    if (a.fechaCobro) set.add(a.fechaCobro.slice(0, 7));
+  });
+  return [...set].sort((a, b) => b.localeCompare(a));
+}
+
+function perteneceAlMes(fecha, mesKey) {
+  return !!fecha && fecha.slice(0, 7) === mesKey;
 }
 const BILLETERA_ID = 'default';
 
@@ -357,8 +401,9 @@ function EntradaLista({
   );
 }
 
-function ChecklistCobradoMesCorriente({ items, mesActual, onToggleCobrado }) {
-  const delMes = useMemo(() => aCobrarMesCorriente(items, mesActual), [items, mesActual]);
+function ChecklistCobradoMesCorriente({ items, mesReferencia, onToggleCobrado }) {
+  const delMes = useMemo(() => aCobrarMesCorriente(items, mesReferencia), [items, mesReferencia]);
+  const esMesActual = mesReferencia === getMesActual();
   const pendientes = delMes.filter((it) => !it.cobrado);
   const cobrados = delMes.filter((it) => it.cobrado);
   const totalPendiente = sumMontos(pendientes);
@@ -371,10 +416,10 @@ function ChecklistCobradoMesCorriente({ items, mesActual, onToggleCobrado }) {
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
           <h3 className="text-sm font-semibold text-amber-900">
-            Cobrado mes corriente
+            {esMesActual ? 'Cobrado mes corriente' : `Cobrado · ${formatMesLabel(mesReferencia)}`}
           </h3>
           <p className="text-xs text-amber-700/80">
-            {formatMesLabel(mesActual)} · al marcar cobrado se suma a Dinero actual
+            {formatMesLabel(mesReferencia)} · al marcar cobrado se suma a Dinero actual
           </p>
         </div>
         <div className="text-right text-xs tabular-nums">
@@ -426,14 +471,14 @@ function ChecklistCobradoMesCorriente({ items, mesActual, onToggleCobrado }) {
   );
 }
 
-function ListaACobrar({ items, onAdd, onUpdate, onDelete, onToggleCobrado }) {
-  const mesActual = getMesActual();
+function ListaACobrar({ items, onAdd, onUpdate, onDelete, onToggleCobrado, mesVista }) {
+  const mesReferencia = mesVista || getMesActual();
   return (
     <div className="space-y-4">
       {onToggleCobrado && (
         <ChecklistCobradoMesCorriente
           items={items}
-          mesActual={mesActual}
+          mesReferencia={mesReferencia}
           onToggleCobrado={onToggleCobrado}
         />
       )}
@@ -476,8 +521,9 @@ function BilleteraSection({ open, onToggle, headerClassName, sectionClassName = 
   );
 }
 
-function ChecklistMesCorriente({ items, mesActual, onTogglePagado }) {
-  const delMes = useMemo(() => deudasMesCorriente(items, mesActual), [items, mesActual]);
+function ChecklistMesCorriente({ items, mesReferencia, onTogglePagado }) {
+  const delMes = useMemo(() => deudasMesCorriente(items, mesReferencia), [items, mesReferencia]);
+  const esMesActual = mesReferencia === getMesActual();
   const pendientes = delMes.filter((it) => !it.pagado);
   const pagadas = delMes.filter((it) => it.pagado);
   const totalPendiente = sumMontos(pendientes);
@@ -490,10 +536,10 @@ function ChecklistMesCorriente({ items, mesActual, onTogglePagado }) {
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
           <h3 className="text-sm font-semibold text-emerald-900">
-            Pagado mes corriente
+            {esMesActual ? 'Pagado mes corriente' : `Pagado · ${formatMesLabel(mesReferencia)}`}
           </h3>
           <p className="text-xs text-emerald-700/80">
-            {formatMesLabel(mesActual)} · al marcar pagada se descuenta de Dinero actual
+            {formatMesLabel(mesReferencia)} · al marcar pagada se descuenta de Dinero actual
           </p>
         </div>
         <div className="text-right text-xs tabular-nums">
@@ -550,20 +596,118 @@ function ChecklistMesCorriente({ items, mesActual, onTogglePagado }) {
   );
 }
 
-function ListaDeudas({ items, onAdd, onUpdate, onDelete, onDuplicateNextMonth, onTogglePagado }) {
-  const mesActual = getMesActual();
-  const [filtroMes, setFiltroMes] = useState('todos');
+function SelectorMesBilletera({ mesVista, mesActual, mesesHistorial, onChangeMes }) {
+  const [historialAbierto, setHistorialAbierto] = useState(false);
+  const ref = useRef(null);
+  const esMesActual = mesVista === mesActual;
+
+  useEffect(() => {
+    const onDocClick = (e) => {
+      if (ref.current && !ref.current.contains(e.target)) setHistorialAbierto(false);
+    };
+    document.addEventListener('mousedown', onDocClick);
+    return () => document.removeEventListener('mousedown', onDocClick);
+  }, []);
+
+  return (
+    <div className="flex flex-wrap items-center justify-center gap-2 py-2 border-t border-gray-100/80">
+      <button
+        type="button"
+        onClick={() => onChangeMes(getMesAnterior(mesVista))}
+        className="p-2 rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-50 hover:text-emerald-600 transition-colors"
+        title="Mes anterior"
+      >
+        <ChevronLeft size={18} />
+      </button>
+      <div className="relative" ref={ref}>
+        <button
+          type="button"
+          onClick={() => setHistorialAbierto((o) => !o)}
+          className={`flex items-center gap-2 px-4 py-2 rounded-xl border text-sm font-semibold transition-colors ${
+            esMesActual
+              ? 'bg-emerald-50 border-emerald-200 text-emerald-800 hover:bg-emerald-100'
+              : 'bg-amber-50 border-amber-200 text-amber-900 hover:bg-amber-100'
+          }`}
+        >
+          <Calendar size={16} className="shrink-0" />
+          <span className="capitalize">{formatMesLabel(mesVista)}</span>
+          {!esMesActual && (
+            <span className="text-[10px] font-medium uppercase tracking-wide bg-amber-200/80 text-amber-900 px-1.5 py-0.5 rounded">
+              histórico
+            </span>
+          )}
+        </button>
+        {historialAbierto && (
+          <div className="absolute top-full left-1/2 -translate-x-1/2 mt-1 z-20 min-w-[200px] max-h-64 overflow-y-auto rounded-xl border border-gray-200 bg-white shadow-lg py-1">
+            <p className="px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wide text-gray-400">
+              Historial de meses
+            </p>
+            {mesesHistorial.map((m) => (
+              <button
+                key={m}
+                type="button"
+                onClick={() => {
+                  onChangeMes(m);
+                  setHistorialAbierto(false);
+                }}
+                className={`w-full text-left px-3 py-2 text-sm capitalize transition-colors ${
+                  m === mesVista
+                    ? 'bg-emerald-50 text-emerald-800 font-medium'
+                    : 'text-gray-700 hover:bg-gray-50'
+                }`}
+              >
+                {formatMesLabel(m)}
+                {m === mesActual && (
+                  <span className="ml-2 text-[10px] normal-case text-emerald-600">(actual)</span>
+                )}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+      <button
+        type="button"
+        onClick={() => onChangeMes(getMesSiguiente(mesVista))}
+        disabled={mesVista >= mesActual}
+        className="p-2 rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-50 hover:text-emerald-600 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+        title="Mes siguiente"
+      >
+        <ChevronRight size={18} />
+      </button>
+      {!esMesActual && (
+        <button
+          type="button"
+          onClick={() => onChangeMes(mesActual)}
+          className="text-xs font-medium text-emerald-600 hover:text-emerald-700 px-2 py-1 rounded-lg hover:bg-emerald-50 transition-colors"
+        >
+          Ir al mes actual
+        </button>
+      )}
+    </div>
+  );
+}
+
+function ListaDeudas({ items, onAdd, onUpdate, onDelete, onDuplicateNextMonth, onTogglePagado, mesVista }) {
+  const mesActualReal = getMesActual();
+  const mesReferencia = mesVista || mesActualReal;
+  const [filtroMes, setFiltroMes] = useState(() =>
+    (mesVista || mesActualReal) === mesActualReal ? 'mes_actual' : mesVista
+  );
   const [filtroEtiqueta, setFiltroEtiqueta] = useState('');
   const [filtroEstado, setFiltroEstado] = useState('pendientes');
   const [busqueda, setBusqueda] = useState('');
 
+  useEffect(() => {
+    setFiltroMes(mesReferencia === mesActualReal ? 'mes_actual' : mesReferencia);
+  }, [mesReferencia, mesActualReal]);
+
   const mesesDisponibles = useMemo(() => {
-    const set = new Set([mesActual]);
+    const set = new Set([mesActualReal, mesReferencia]);
     items.forEach((it) => {
       if (it.enCuotas && it.mes) set.add(it.mes);
     });
     return [...set].sort((a, b) => b.localeCompare(a));
-  }, [items, mesActual]);
+  }, [items, mesActualReal, mesReferencia]);
 
   const itemsFiltrados = useMemo(() => {
     const q = busqueda.trim().toLowerCase();
@@ -575,7 +719,7 @@ function ListaDeudas({ items, onAdd, onUpdate, onDelete, onDuplicateNextMonth, o
       } else if (filtroEtiqueta && item.etiqueta !== filtroEtiqueta) return false;
       if (filtroMes === 'mes_actual') {
         const key = item.enCuotas && item.mes ? item.mes : '_unico';
-        if (key !== mesActual) return false;
+        if (key !== mesReferencia) return false;
       } else if (filtroMes !== 'todos') {
         const key = item.enCuotas && item.mes ? item.mes : '_unico';
         if (key !== filtroMes) return false;
@@ -588,7 +732,7 @@ function ListaDeudas({ items, onAdd, onUpdate, onDelete, onDuplicateNextMonth, o
       }
       return true;
     });
-  }, [items, filtroEstado, filtroEtiqueta, filtroMes, busqueda, mesActual]);
+  }, [items, filtroEstado, filtroEtiqueta, filtroMes, busqueda, mesReferencia]);
 
   const resumenEtiquetas = useMemo(() => {
     const map = new Map();
@@ -611,12 +755,12 @@ function ListaDeudas({ items, onAdd, onUpdate, onDelete, onDuplicateNextMonth, o
     const keys = [...map.keys()].sort((a, b) => {
       if (a === '_unico') return 1;
       if (b === '_unico') return -1;
-      if (a === mesActual) return -1;
-      if (b === mesActual) return 1;
+      if (a === mesReferencia) return -1;
+      if (b === mesReferencia) return 1;
       return b.localeCompare(a);
     });
     return keys.map((key) => ({ key, label: formatMesLabel(key), items: map.get(key) }));
-  }, [itemsFiltrados, mesActual]);
+  }, [itemsFiltrados, mesReferencia]);
 
   const renderFila = (item) => {
     const dias = diasHastaVencimiento(item.vencimiento);
@@ -711,7 +855,7 @@ function ListaDeudas({ items, onAdd, onUpdate, onDelete, onDuplicateNextMonth, o
             <>
               <input
                 type="month"
-                value={item.mes || mesActual}
+                value={item.mes || mesReferencia}
                 onChange={(e) => onUpdate(item.id, 'mes', e.target.value)}
                 className="px-2 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-slate-200"
                 title="Mes de la cuota"
@@ -851,7 +995,7 @@ function ListaDeudas({ items, onAdd, onUpdate, onDelete, onDuplicateNextMonth, o
       {onTogglePagado && (
         <ChecklistMesCorriente
           items={items}
-          mesActual={mesActual}
+          mesReferencia={mesReferencia}
           onTogglePagado={onTogglePagado}
         />
       )}
@@ -891,8 +1035,10 @@ function ListaDeudas({ items, onAdd, onUpdate, onDelete, onDuplicateNextMonth, o
             <div className="flex items-center justify-between mb-2 px-1">
               <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-600">
                 {label}
-                {key === mesActual && (
-                  <span className="ml-2 normal-case font-medium text-emerald-600">· mes actual</span>
+                {key === mesReferencia && (
+                  <span className="ml-2 normal-case font-medium text-emerald-600">
+                    · {mesReferencia === mesActualReal ? 'mes actual' : formatMesLabel(mesReferencia)}
+                  </span>
                 )}
               </h3>
               <span className="text-xs font-bold text-slate-700 tabular-nums">
@@ -934,6 +1080,20 @@ export default function ContadorDinero() {
   const [saveError, setSaveError] = useState(null);
   const saveTimeoutRef = useRef(null);
   const [sectionsOpen, setSectionsOpen] = useState(loadSectionsOpen);
+  const [mesVista, setMesVista] = useState(getMesActual);
+  const [mesesHistorialBd, setMesesHistorialBd] = useState([]);
+  const mesActualReal = getMesActual();
+
+  const setMesVistaPersist = useCallback((mes) => {
+    const capped = mes > mesActualReal ? mesActualReal : mes;
+    setMesVista(capped);
+    cantidadesRef.current = { ...cantidadesRef.current, mes_vista: capped };
+  }, [mesActualReal]);
+
+  const mesesHistorial = useMemo(
+    () => mergeMesesHistorial(mesesHistorialBd, gastos, deudas, aCobrar),
+    [mesesHistorialBd, gastos, deudas, aCobrar]
+  );
 
   const toggleSection = useCallback((key) => {
     setSectionsOpen((prev) => {
@@ -966,7 +1126,12 @@ export default function ContadorDinero() {
     () => gastos.reduce((sum, it) => sum + (Number(it.monto) || 0), 0),
     [gastos]
   );
-  const mesActualDeudas = getMesActual();
+  const gastosDelMes = useMemo(
+    () => gastos.filter((g) => perteneceAlMes(g.fecha, mesVista)),
+    [gastos, mesVista]
+  );
+  const totalGastosMes = useMemo(() => sumMontos(gastosDelMes), [gastosDelMes]);
+  const mesActualDeudas = mesVista;
   const deudasPendientes = useMemo(() => deudas.filter((d) => !d.pagado), [deudas]);
   const totalDeudas = useMemo(() => sumMontos(deudasPendientes), [deudasPendientes]);
   const totalDeudasPagadas = useMemo(
@@ -1041,6 +1206,10 @@ export default function ContadorDinero() {
               cantidadesRef.current = data.cantidades;
               const meta = data.cantidades.meta;
               setMetaAhorro(meta != null && meta !== '' ? (typeof meta === 'number' ? meta : Number(meta)) : null);
+              setMesVista(parseMesVista(data.cantidades.mes_vista, getMesActual()));
+              if (Array.isArray(data.cantidades.meses_historial)) {
+                setMesesHistorialBd(data.cantidades.meses_historial);
+              }
             }
             if (Array.isArray(data.dinero_actual) && data.dinero_actual.length > 0) {
               setDineroActual(data.dinero_actual.map((it) => ({ ...it, id: it.id ?? Date.now() + Math.random() })));
@@ -1100,18 +1269,29 @@ export default function ContadorDinero() {
             setObjetivosCompra(data.objetivosCompra.map((it) => ({ ...it, comprado: !!it.comprado })));
           }
           if (data.metaAhorro != null) setMetaAhorro(data.metaAhorro);
+          if (data.mesVista) setMesVista(parseMesVista(data.mesVista, getMesActual()));
+          if (Array.isArray(data.mesesHistorial)) setMesesHistorialBd(data.mesesHistorial);
         }
       } catch (_) {}
       setIsLoading(false);
     }
   }, []);
 
-  const saveToBackend = useCallback(async (dineroActualData, aCobrarData, gastosData, deudasData, deudoresData, objetivosCompraData) => {
+  const saveToBackend = useCallback(async (dineroActualData, aCobrarData, gastosData, deudasData, deudoresData, objetivosCompraData, mesVistaData) => {
+    const mesesHistorialSave = mergeMesesHistorial(mesesHistorialBd, gastosData, deudasData, aCobrarData);
+    const cantidades = {
+      ...cantidadesRef.current,
+      meta: metaAhorro,
+      mes_vista: mesVistaData,
+      meses_historial: mesesHistorialSave,
+    };
+    cantidadesRef.current = cantidades;
+    setMesesHistorialBd(mesesHistorialSave);
+
     if (supabase) {
       setSaveStatus('saving');
       setSaveError(null);
       try {
-        const cantidades = { ...cantidadesRef.current, meta: metaAhorro };
         const { error } = await supabase.from('billetera').upsert(
           {
             id: BILLETERA_ID,
@@ -1142,6 +1322,8 @@ export default function ContadorDinero() {
             deudores: deudoresData,
             objetivosCompra: objetivosCompraData,
             metaAhorro,
+            mesVista: mesVistaData,
+            mesesHistorial: mesesHistorialSave,
           }));
         } catch (_) {}
       }
@@ -1155,20 +1337,22 @@ export default function ContadorDinero() {
           deudores: deudoresData,
           objetivosCompra: objetivosCompraData,
           metaAhorro,
+          mesVista: mesVistaData,
+          mesesHistorial: mesesHistorialSave,
         }));
       } catch (_) {}
     }
-  }, [metaAhorro]);
+  }, [metaAhorro, mesesHistorialBd]);
 
   useEffect(() => {
     if (isLoading) return;
     if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
     saveTimeoutRef.current = setTimeout(
-      () => saveToBackend(dineroActual, aCobrar, gastos, deudas, deudores, objetivosCompra),
+      () => saveToBackend(dineroActual, aCobrar, gastos, deudas, deudores, objetivosCompra, mesVista),
       1000
     );
     return () => { if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current); };
-  }, [dineroActual, aCobrar, gastos, deudas, deudores, objetivosCompra, isLoading, saveToBackend]);
+  }, [dineroActual, aCobrar, gastos, deudas, deudores, objetivosCompra, mesVista, isLoading, saveToBackend]);
 
   const addEntrada = (setter, withCat = false) => {
     setter((prev) => [...prev, { id: Date.now(), concepto: '', monto: '', fecha: '', ...(withCat ? { categoria: '' } : {}) }]);
@@ -1307,7 +1491,12 @@ export default function ContadorDinero() {
   };
 
   const addGasto = () => {
-    setGastos((prev) => [...prev, { id: Date.now(), fecha: new Date().toISOString().slice(0, 10), concepto: '', monto: '', categoria: 'Otro' }]);
+    const hoy = new Date().toISOString().slice(0, 10);
+    const fecha = mesVista === mesActualReal ? hoy : `${mesVista}-01`;
+    setGastos((prev) => [
+      ...prev,
+      { id: Date.now(), fecha, concepto: '', monto: '', categoria: 'Otro' },
+    ]);
   };
   const updateGasto = (id, field, value) => {
     setGastos((prev) => prev.map((it) => (it.id === id ? { ...it, [field]: value } : it)));
@@ -1362,13 +1551,13 @@ export default function ContadorDinero() {
   }, [objetivosCompra]);
 
   const gastosOrdenados = useMemo(() => {
-    return [...gastos].sort((a, b) => {
+    return [...gastosDelMes].sort((a, b) => {
       const fa = a.fecha || '';
       const fb = b.fecha || '';
       if (fa !== fb) return fb.localeCompare(fa);
       return (b.id || 0) - (a.id || 0);
     });
-  }, [gastos]);
+  }, [gastosDelMes]);
 
   if (isLoading) {
     return (
@@ -1419,9 +1608,29 @@ export default function ContadorDinero() {
             )}
           </div>
         </div>
+        <SelectorMesBilletera
+          mesVista={mesVista}
+          mesActual={mesActualReal}
+          mesesHistorial={mesesHistorial}
+          onChangeMes={setMesVistaPersist}
+        />
       </header>
 
       <main className="max-w-4xl mx-auto px-4 py-6 pb-16">
+        {mesVista !== mesActualReal && (
+          <div className="mb-4 px-4 py-2.5 rounded-xl bg-amber-50 border border-amber-200 text-sm text-amber-900 flex flex-wrap items-center justify-between gap-2">
+            <span>
+              Viendo <strong className="capitalize">{formatMesLabel(mesVista)}</strong> — gastos y checklists filtrados por este mes
+            </span>
+            <button
+              type="button"
+              onClick={() => setMesVistaPersist(mesActualReal)}
+              className="text-xs font-semibold text-emerald-700 hover:text-emerald-800 px-2 py-1 rounded-lg hover:bg-emerald-50"
+            >
+              Volver al mes actual
+            </button>
+          </div>
+        )}
         {/* Resumen con gradientes */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
           <div className="rounded-2xl bg-gradient-to-br from-emerald-500 to-emerald-600 p-5 text-white shadow-xl shadow-emerald-200/50">
@@ -1559,12 +1768,21 @@ export default function ContadorDinero() {
               </div>
               <div>
                 <h2 className="font-semibold text-gray-800">Tabla de gastos</h2>
-                <p className="text-xs text-gray-500">Registrá lo que gastás para llevar el control</p>
+                <p className="text-xs text-gray-500 capitalize">
+                  {formatMesLabel(mesVista)} · registrá lo que gastás
+                </p>
               </div>
             </>
           }
           right={
-            <span className="text-lg font-bold text-rose-600 tabular-nums">Total: ${formatMoney(totalGastos)}</span>
+            <div className="text-right">
+              <span className="text-lg font-bold text-rose-600 tabular-nums">
+                ${formatMoney(totalGastosMes)}
+              </span>
+              {mesVista !== mesActualReal && totalGastos !== totalGastosMes && (
+                <p className="text-xs text-gray-400">Total histórico: ${formatMoney(totalGastos)}</p>
+              )}
+            </div>
           }
         >
           <div className="p-4 overflow-x-auto">
@@ -1582,7 +1800,9 @@ export default function ContadorDinero() {
                 {gastosOrdenados.length === 0 ? (
                   <tr>
                     <td colSpan={5} className="py-10 text-center text-gray-400">
-                      No hay gastos registrados. Agregá una fila con el botón de abajo.
+                      {gastos.length === 0
+                        ? 'No hay gastos registrados. Agregá una fila con el botón de abajo.'
+                        : `No hay gastos en ${formatMesLabel(mesVista)}.`}
                     </td>
                   </tr>
                 ) : (
@@ -1646,8 +1866,8 @@ export default function ContadorDinero() {
               {gastosOrdenados.length > 0 && (
                 <tfoot>
                   <tr className="bg-rose-50/50 font-semibold text-gray-800">
-                    <td colSpan={3} className="py-3 px-2 text-right">Total</td>
-                    <td className="py-3 pr-2 text-right tabular-nums text-rose-700">${formatMoney(totalGastos)}</td>
+                    <td colSpan={3} className="py-3 px-2 text-right capitalize">Total {formatMesLabel(mesVista)}</td>
+                    <td className="py-3 pr-2 text-right tabular-nums text-rose-700">${formatMoney(totalGastosMes)}</td>
                     <td />
                   </tr>
                 </tfoot>
@@ -1711,6 +1931,7 @@ export default function ContadorDinero() {
               onDelete={(id) => deleteEntrada(setDeudas, id)}
               onDuplicateNextMonth={duplicateDeudaMesSiguiente}
               onTogglePagado={toggleDeudaPagada}
+              mesVista={mesVista}
             />
           </div>
         </BilleteraSection>
@@ -1815,6 +2036,7 @@ export default function ContadorDinero() {
               onUpdate={(id, field, value) => updateEntrada(setACobrar, id, field, value)}
               onDelete={(id) => deleteEntrada(setACobrar, id)}
               onToggleCobrado={toggleACobrarCobrado}
+              mesVista={mesVista}
             />
           </div>
         </BilleteraSection>

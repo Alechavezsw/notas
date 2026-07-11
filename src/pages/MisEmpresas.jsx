@@ -23,10 +23,39 @@ import {
   Factory,
   Briefcase,
   Sparkles,
+  ChevronDown,
 } from 'lucide-react';
 
 const STORAGE_KEY = 'alenotes_mis_empresas';
+const SECTIONS_STORAGE_KEY = 'alenotes_mis_empresas_sections';
 const ROW_ID = 'default';
+
+const DEFAULT_EMPRESA_SECTIONS = {
+  identificacion: true,
+  presencia: true,
+  kpis: true,
+  enlaces: true,
+  contactos: true,
+  notas: true,
+  objetivos: true,
+  proximos: true,
+};
+
+function loadEmpresaSections() {
+  try {
+    const raw = localStorage.getItem(SECTIONS_STORAGE_KEY);
+    if (raw) return JSON.parse(raw);
+  } catch {
+    /* ignore */
+  }
+  return {};
+}
+
+function sectionIsOpen(sectionsState, empresaId, sectionId) {
+  const company = sectionsState[empresaId];
+  if (company && company[sectionId] !== undefined) return company[sectionId];
+  return DEFAULT_EMPRESA_SECTIONS[sectionId] ?? true;
+}
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
 const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
@@ -99,10 +128,52 @@ function newCompany() {
 
 function SectionTitle({ Icon, accent, children }) {
   return (
-    <h3 className={`flex items-center gap-2 text-xs font-bold uppercase tracking-widest ${accent.section} mb-3`}>
-      <Icon size={16} className="opacity-90" />
+    <h3 className={`flex items-center gap-2 text-xs font-bold uppercase tracking-widest ${accent.section}`}>
+      <Icon size={16} className="opacity-90 shrink-0" />
       {children}
     </h3>
+  );
+}
+
+function EmpresaSection({
+  sectionId,
+  empresaId,
+  isOpen,
+  onToggle,
+  Icon,
+  accent,
+  title,
+  badge,
+  children,
+  className = '',
+  bodyClassName = '',
+}) {
+  return (
+    <div className={`rounded-2xl border border-white/10 bg-black/25 overflow-hidden ${className}`}>
+      <button
+        type="button"
+        onClick={() => onToggle(empresaId, sectionId)}
+        aria-expanded={isOpen}
+        className="w-full flex items-center justify-between gap-3 p-4 hover:bg-white/[0.04] transition-colors text-left"
+      >
+        <div className="flex items-center gap-2 min-w-0">
+          <SectionTitle Icon={Icon} accent={accent}>
+            {title}
+          </SectionTitle>
+          {badge}
+        </div>
+        <ChevronDown
+          size={18}
+          className={`text-gray-500 shrink-0 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`}
+          aria-hidden
+        />
+      </button>
+      {isOpen && (
+        <div className={`px-4 pb-4 border-t border-white/5 ${bodyClassName}`}>
+          {children}
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -112,7 +183,27 @@ export default function MisEmpresas() {
   const [saveStatus, setSaveStatus] = useState('saved');
   const [filterStatus, setFilterStatus] = useState('todas');
   const [search, setSearch] = useState('');
+  const [sectionsState, setSectionsState] = useState(loadEmpresaSections);
   const saveTimeoutRef = useRef(null);
+
+  const toggleEmpresaSection = useCallback((empresaId, sectionId) => {
+    setSectionsState((prev) => {
+      const next = {
+        ...prev,
+        [empresaId]: {
+          ...DEFAULT_EMPRESA_SECTIONS,
+          ...prev[empresaId],
+          [sectionId]: !sectionIsOpen(prev, empresaId, sectionId),
+        },
+      };
+      try {
+        localStorage.setItem(SECTIONS_STORAGE_KEY, JSON.stringify(next));
+      } catch {
+        /* ignore */
+      }
+      return next;
+    });
+  }, []);
 
   useEffect(() => {
     if (supabase) {
@@ -442,11 +533,16 @@ export default function MisEmpresas() {
                     </div>
 
                     <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 mb-8">
-                      <div className="rounded-2xl border border-white/10 bg-black/25 p-4">
-                        <SectionTitle Icon={Hash} accent={accent}>
-                          Identificación
-                        </SectionTitle>
-                        <div className="space-y-3">
+                      <EmpresaSection
+                        sectionId="identificacion"
+                        empresaId={it.id}
+                        isOpen={sectionIsOpen(sectionsState, it.id, 'identificacion')}
+                        onToggle={toggleEmpresaSection}
+                        Icon={Hash}
+                        accent={accent}
+                        title="Identificación"
+                      >
+                        <div className="space-y-3 pt-3">
                           <input
                             type="text"
                             value={it.taxId || ''}
@@ -472,13 +568,18 @@ export default function MisEmpresas() {
                             />
                           </div>
                         </div>
-                      </div>
+                      </EmpresaSection>
 
-                      <div className="rounded-2xl border border-white/10 bg-black/25 p-4">
-                        <SectionTitle Icon={Globe} accent={accent}>
-                          Presencia
-                        </SectionTitle>
-                        <div className="space-y-3">
+                      <EmpresaSection
+                        sectionId="presencia"
+                        empresaId={it.id}
+                        isOpen={sectionIsOpen(sectionsState, it.id, 'presencia')}
+                        onToggle={toggleEmpresaSection}
+                        Icon={Globe}
+                        accent={accent}
+                        title="Presencia"
+                      >
+                        <div className="space-y-3 pt-3">
                           <div className="flex items-center gap-2 text-gray-500">
                             <LinkIcon size={14} />
                             <input
@@ -510,13 +611,19 @@ export default function MisEmpresas() {
                             />
                           </div>
                         </div>
-                      </div>
+                      </EmpresaSection>
 
-                      <div className="rounded-2xl border border-white/10 bg-black/25 p-4 sm:col-span-2 lg:col-span-1">
-                        <SectionTitle Icon={BarChart3} accent={accent}>
-                          Indicadores rápidos
-                        </SectionTitle>
-                        <ul className="space-y-2 mb-2">
+                      <EmpresaSection
+                        sectionId="kpis"
+                        empresaId={it.id}
+                        isOpen={sectionIsOpen(sectionsState, it.id, 'kpis')}
+                        onToggle={toggleEmpresaSection}
+                        Icon={BarChart3}
+                        accent={accent}
+                        title="Indicadores rápidos"
+                        className="sm:col-span-2 lg:col-span-1"
+                      >
+                        <ul className="space-y-2 mb-2 pt-3">
                           {(it.kpis || []).map((k) => (
                             <li key={k.id} className="flex gap-2 items-center group/k">
                               <input
@@ -557,15 +664,21 @@ export default function MisEmpresas() {
                         >
                           + Indicador
                         </button>
-                      </div>
+                      </EmpresaSection>
                     </div>
 
                     <div className="grid gap-6 lg:grid-cols-2 mb-8">
-                      <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
-                        <SectionTitle Icon={LinkIcon} accent={accent}>
-                          Enlaces y referencias
-                        </SectionTitle>
-                        <ul className="space-y-2">
+                      <EmpresaSection
+                        sectionId="enlaces"
+                        empresaId={it.id}
+                        isOpen={sectionIsOpen(sectionsState, it.id, 'enlaces')}
+                        onToggle={toggleEmpresaSection}
+                        Icon={LinkIcon}
+                        accent={accent}
+                        title="Enlaces y referencias"
+                        className="bg-black/20"
+                      >
+                        <ul className="space-y-2 pt-3">
                           {(it.links || []).map((l) => (
                             <li key={l.id} className="flex flex-col sm:flex-row gap-2 group/l">
                               <input
@@ -601,13 +714,19 @@ export default function MisEmpresas() {
                         >
                           + Enlace
                         </button>
-                      </div>
+                      </EmpresaSection>
 
-                      <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
-                        <SectionTitle Icon={Users} accent={accent}>
-                          Personas clave
-                        </SectionTitle>
-                        <ul className="space-y-3">
+                      <EmpresaSection
+                        sectionId="contactos"
+                        empresaId={it.id}
+                        isOpen={sectionIsOpen(sectionsState, it.id, 'contactos')}
+                        onToggle={toggleEmpresaSection}
+                        Icon={Users}
+                        accent={accent}
+                        title="Personas clave"
+                        className="bg-black/20"
+                      >
+                        <ul className="space-y-3 pt-3">
                           {(it.contacts || []).map((c) => (
                             <li
                               key={c.id}
@@ -670,14 +789,20 @@ export default function MisEmpresas() {
                         >
                           + Persona
                         </button>
-                      </div>
+                      </EmpresaSection>
                     </div>
 
-                    <div className="mb-8">
-                      <SectionTitle Icon={FileText} accent={accent}>
-                        Notas por área (amplio)
-                      </SectionTitle>
-                      <div className="grid gap-4 md:grid-cols-3">
+                    <EmpresaSection
+                      sectionId="notas"
+                      empresaId={it.id}
+                      isOpen={sectionIsOpen(sectionsState, it.id, 'notas')}
+                      onToggle={toggleEmpresaSection}
+                      Icon={FileText}
+                      accent={accent}
+                      title="Notas por área (amplio)"
+                      className="mb-8 bg-black/20"
+                    >
+                      <div className="grid gap-4 md:grid-cols-3 pt-3">
                         <div>
                           <label className="block text-[10px] uppercase tracking-wider text-gray-500 mb-1.5 flex items-center gap-1">
                             <Briefcase size={10} /> General
@@ -715,22 +840,27 @@ export default function MisEmpresas() {
                           />
                         </div>
                       </div>
-                    </div>
+                    </EmpresaSection>
 
                     <div className="grid gap-6 lg:grid-cols-2">
-                      <div className="rounded-2xl border border-white/10 bg-black/25 p-4">
-                        <div className="flex items-center justify-between mb-3">
-                          <SectionTitle Icon={Sparkles} accent={accent}>
-                            Objetivos estratégicos
-                          </SectionTitle>
-                          {objectives.length > 0 && (
-                            <span className="text-[10px] text-gray-500">
+                      <EmpresaSection
+                        sectionId="objetivos"
+                        empresaId={it.id}
+                        isOpen={sectionIsOpen(sectionsState, it.id, 'objetivos')}
+                        onToggle={toggleEmpresaSection}
+                        Icon={Sparkles}
+                        accent={accent}
+                        title="Objetivos estratégicos"
+                        badge={
+                          objectives.length > 0 ? (
+                            <span className="text-[10px] text-gray-500 font-normal normal-case tracking-normal ml-1">
                               {objDone}/{objectives.length}
                             </span>
-                          )}
-                        </div>
+                          ) : null
+                        }
+                      >
                         {objectives.length > 0 && (
-                          <div className="h-1.5 rounded-full bg-white/10 mb-3 overflow-hidden">
+                          <div className="h-1.5 rounded-full bg-white/10 mb-3 mt-3 overflow-hidden">
                             <div
                               className={`h-full rounded-full bg-gradient-to-r ${accent.progress} transition-all duration-500`}
                               style={{ width: `${objPct}%` }}
@@ -779,21 +909,26 @@ export default function MisEmpresas() {
                         >
                           + Objetivo
                         </button>
-                      </div>
+                      </EmpresaSection>
 
-                      <div className="rounded-2xl border border-white/10 bg-black/25 p-4">
-                        <div className="flex items-center justify-between mb-3">
-                          <SectionTitle Icon={ListChecks} accent={accent}>
-                            Próximos pasos
-                          </SectionTitle>
-                          {nextActions.length > 0 && (
-                            <span className="text-[10px] text-gray-500">
+                      <EmpresaSection
+                        sectionId="proximos"
+                        empresaId={it.id}
+                        isOpen={sectionIsOpen(sectionsState, it.id, 'proximos')}
+                        onToggle={toggleEmpresaSection}
+                        Icon={ListChecks}
+                        accent={accent}
+                        title="Próximos pasos"
+                        badge={
+                          nextActions.length > 0 ? (
+                            <span className="text-[10px] text-gray-500 font-normal normal-case tracking-normal ml-1">
                               {actDone}/{nextActions.length}
                             </span>
-                          )}
-                        </div>
+                          ) : null
+                        }
+                      >
                         {nextActions.length > 0 && (
-                          <div className="h-1.5 rounded-full bg-white/10 mb-3 overflow-hidden">
+                          <div className="h-1.5 rounded-full bg-white/10 mb-3 mt-3 overflow-hidden">
                             <div
                               className={`h-full rounded-full bg-gradient-to-r ${accent.progress} transition-all duration-500`}
                               style={{ width: `${actPct}%` }}
@@ -842,7 +977,7 @@ export default function MisEmpresas() {
                         >
                           + Paso
                         </button>
-                      </div>
+                      </EmpresaSection>
                     </div>
 
                     <p className="mt-6 text-[10px] text-gray-600 text-right">

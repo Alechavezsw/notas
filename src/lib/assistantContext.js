@@ -230,17 +230,18 @@ const ENTRADA_ESTADO_LABELS = {
 };
 
 function formatEntradasCards(cards, columns) {
-  if (!Array.isArray(cards) || cards.length === 0) return '### Entradas\n- Ninguna entrada registrada.';
+  if (!Array.isArray(cards) || cards.length === 0) return '### Entradas económicas\n- Ningún trabajo, empresa o freelance registrado.';
   const labelMap = {};
   (Array.isArray(columns) ? columns : []).forEach((col) => {
     if (col?.id) labelMap[col.id] = col.label || col.id;
   });
   const colLabel = (id) => labelMap[id] || ENTRADA_COL_LABELS[id] || id || '-';
-  const lines = ['### Entradas (kanban tareas y proyección por unidad)'];
+  const lines = ['### Entradas económicas (trabajos, empresas, freelance · kanban por unidad)'];
   cards.slice(0, 25).forEach((c) => {
     const col = colLabel(c.columnId);
     const est = ENTRADA_ESTADO_LABELS[c.estado] || c.estado || '-';
-    lines.push(`- [${col}] ${c.titulo || 'Sin título'} · ${est}${c.mesProyeccion ? ` · mes ${c.mesProyeccion}` : ''}`);
+    lines.push(`- [${col}] ${c.titulo || 'Sin título'} · ${est}${c.monto ? ` · $${Number(c.monto) || 0}` : ''}${c.mesProyeccion ? ` · mes ${c.mesProyeccion}` : ''}`);
+    if (c.detalles) lines.push(`  Detalles: ${String(c.detalles).slice(0, 160)}`);
     if (c.proyeccion) lines.push(`  Proyección: ${String(c.proyeccion).slice(0, 160)}`);
     const tareas = Array.isArray(c.tareas) ? c.tareas : [];
     tareas.slice(0, 5).forEach((t) => lines.push(`  · [${t.done ? 'x' : ' '}] ${(t.text || '').slice(0, 80)}`));

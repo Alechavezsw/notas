@@ -15,6 +15,7 @@ import {
   Circle,
   Calendar,
   TrendingUp,
+  DollarSign,
 } from 'lucide-react';
 
 const STORAGE_KEY = 'alenotes_entradas';
@@ -84,6 +85,14 @@ function getMesActual() {
   return new Date().toISOString().slice(0, 7);
 }
 
+function formatMoney(num) {
+  return new Intl.NumberFormat('es-AR', {
+    style: 'decimal',
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+  }).format(Number(num) || 0);
+}
+
 function newTask() {
   return { id: `t-${Date.now()}-${Math.random().toString(36).slice(2, 5)}`, text: '', done: false };
 }
@@ -93,6 +102,8 @@ function newCard(columnId = 'otras') {
     id: `ent-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
     columnId,
     titulo: '',
+    monto: '',
+    detalles: '',
     proyeccion: '',
     mesProyeccion: getMesActual(),
     fechaObjetivo: '',
@@ -126,10 +137,12 @@ function normalizeCard(c, columns) {
     id: c.id || newCard().id,
     columnId: col,
     titulo: c.titulo ?? c.cliente ?? '',
-    proyeccion: c.proyeccion ?? c.notas ?? '',
+    monto: c.monto ?? '',
+    detalles: c.detalles ?? c.notas ?? '',
+    proyeccion: c.proyeccion ?? '',
     mesProyeccion: c.mesProyeccion || getMesActual(),
     fechaObjetivo: c.fechaObjetivo ?? '',
-    notas: c.proyeccion ? (c.notas ?? '') : (c.notas ?? ''),
+    notas: c.detalles ?? c.notas ?? '',
     estado,
     tareas: normalizeTasks(c.tareas),
     updatedAt: c.updatedAt || new Date().toISOString(),
@@ -221,8 +234,9 @@ export default function Entradas() {
   }, [cards, columns, isLoading, saveToBackend]);
 
   const patchCard = useCallback((id, patch) => {
+    const next = patch.detalles !== undefined ? { ...patch, notas: patch.detalles } : patch;
     setCards((prev) =>
-      prev.map((c) => (c.id === id ? { ...c, ...patch, updatedAt: new Date().toISOString() } : c))
+      prev.map((c) => (c.id === id ? { ...c, ...next, updatedAt: new Date().toISOString() } : c))
     );
   }, []);
 
@@ -315,6 +329,8 @@ export default function Entradas() {
       const taskTexts = (c.tareas || []).map((t) => t.text);
       return [
         c.titulo,
+        c.monto,
+        c.detalles,
         c.proyeccion,
         c.notas,
         columnMeta(columns, c.columnId).label,
@@ -337,17 +353,22 @@ export default function Entradas() {
     let tareasTotal = 0;
     let proyeccion = 0;
     let activas = 0;
+    let montoActivo = 0;
     cards.forEach((c) => {
       const ts = taskStats(c.tareas);
       tareasDone += ts.done;
       tareasTotal += ts.total;
       if (c.estado === 'proyeccion') proyeccion += 1;
-      if (c.estado === 'activo' || c.estado === 'proyeccion') activas += 1;
+      if (c.estado === 'activo' || c.estado === 'proyeccion') {
+        activas += 1;
+        montoActivo += Number(c.monto) || 0;
+      }
     });
     return {
       entradas: cards.length,
       activas,
       proyeccion,
+      montoActivo,
       tareasDone,
       tareasTotal,
       pct: tareasTotal ? Math.round((tareasDone / tareasTotal) * 100) : 0,
@@ -377,12 +398,15 @@ export default function Entradas() {
             <ArrowLeft size={18} />
             Notas
           </Link>
-          <h1 className="text-lg font-bold text-gray-800 flex items-center gap-2">
-            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-indigo-500 to-teal-600 flex items-center justify-center text-white shadow-md">
-              <LayoutGrid size={18} />
-            </div>
-            Entradas
-          </h1>
+          <div className="text-center min-w-0">
+            <h1 className="text-lg font-bold text-gray-800 flex items-center justify-center gap-2">
+              <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-indigo-500 to-teal-600 flex items-center justify-center text-white shadow-md shrink-0">
+                <LayoutGrid size={18} />
+              </div>
+              Entradas económicas
+            </h1>
+            <p className="text-xs text-gray-500 mt-1">Trabajos · empresas · freelance</p>
+          </div>
           <div className="text-xs">
             {supabase ? (
               <>
@@ -400,11 +424,12 @@ export default function Entradas() {
       <main className="max-w-[1600px] mx-auto px-4 py-6 pb-16">
         <div className="rounded-2xl bg-white/90 border border-gray-200/60 shadow-lg p-5 sm:p-6 mb-6">
           <p className="text-sm text-gray-500 mb-4">
-            Kanban por unidad de negocio: proyección, tareas y columnas editables. Podés agregar nuevas unidades.
+            Seguí ingresos y proyectos económicos por unidad: trabajos, clientes, empresas y freelance.
+            Kanban con proyección, tareas y columnas editables por línea de negocio.
           </p>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 mb-4">
             <div className="rounded-xl bg-indigo-50 border border-indigo-100 p-3">
-              <div className="text-[10px] uppercase tracking-wide text-indigo-600 font-semibold">Entradas</div>
+              <div className="text-[10px] uppercase tracking-wide text-indigo-600 font-semibold">Proyectos / ingresos</div>
               <div className="text-xl font-bold text-indigo-900">{stats.entradas}</div>
             </div>
             <div className="rounded-xl bg-violet-50 border border-violet-100 p-3">
@@ -415,7 +440,11 @@ export default function Entradas() {
               <div className="text-[10px] uppercase tracking-wide text-teal-600 font-semibold">Activas</div>
               <div className="text-xl font-bold text-teal-900">{stats.activas}</div>
             </div>
-            <div className="rounded-xl bg-emerald-50 border border-emerald-100 p-3">
+            <div className="rounded-xl bg-amber-50 border border-amber-100 p-3">
+              <div className="text-[10px] uppercase tracking-wide text-amber-700 font-semibold">Monto activo / proy.</div>
+              <div className="text-xl font-bold text-amber-900 tabular-nums">${formatMoney(stats.montoActivo)}</div>
+            </div>
+            <div className="rounded-xl bg-emerald-50 border border-emerald-100 p-3 col-span-2 sm:col-span-1">
               <div className="text-[10px] uppercase tracking-wide text-emerald-600 font-semibold">Tareas hechas</div>
               <div className="text-xl font-bold text-emerald-900">{stats.pct}%</div>
               <div className="text-[10px] text-emerald-700">{stats.tareasDone}/{stats.tareasTotal}</div>
@@ -428,7 +457,7 @@ export default function Entradas() {
                 type="search"
                 value={busqueda}
                 onChange={(e) => setBusqueda(e.target.value)}
-                placeholder="Buscar título, proyección, tareas…"
+                placeholder="Buscar trabajo, cliente, proyección, tareas…"
                 className="w-full pl-9 pr-9 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-200"
               />
               {busqueda.trim() && (
@@ -517,7 +546,7 @@ export default function Entradas() {
                                 type="text"
                                 value={card.titulo}
                                 onChange={(e) => patchCard(card.id, { titulo: e.target.value })}
-                                placeholder="Título de la entrada"
+                                placeholder="Trabajo, cliente, empresa o freelance"
                                 className="flex-1 font-semibold text-sm text-gray-900 bg-transparent focus:outline-none border-b border-transparent focus:border-indigo-200 pb-0.5 min-w-0"
                               />
                               <button
@@ -528,6 +557,19 @@ export default function Entradas() {
                               >
                                 <Trash2 size={14} />
                               </button>
+                            </div>
+
+                            <div className="flex items-center gap-1.5 mb-2 pl-5">
+                              <DollarSign size={14} className="text-emerald-600 shrink-0" />
+                              <span className="text-gray-500 text-sm">$</span>
+                              <input
+                                type="number"
+                                min={0}
+                                value={card.monto ?? ''}
+                                onChange={(e) => patchCard(card.id, { monto: e.target.value })}
+                                placeholder="Monto"
+                                className="flex-1 text-sm font-semibold tabular-nums text-emerald-800 bg-emerald-50/60 border border-emerald-100 rounded-lg px-2 py-1 focus:outline-none focus:ring-2 focus:ring-emerald-200 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                              />
                             </div>
 
                             <div className="flex flex-wrap gap-2 mb-2">
@@ -629,12 +671,15 @@ export default function Entradas() {
                               </button>
                             </div>
 
+                            <label className="flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wide text-gray-600 mb-1">
+                              Detalles
+                            </label>
                             <textarea
-                              value={card.notas}
-                              onChange={(e) => patchCard(card.id, { notas: e.target.value })}
-                              placeholder="Notas extra…"
+                              value={card.detalles ?? ''}
+                              onChange={(e) => patchCard(card.id, { detalles: e.target.value })}
+                              placeholder="Alcance, condiciones, facturación, contacto, observaciones…"
                               rows={2}
-                              className="w-full text-xs text-gray-600 rounded-lg border border-gray-100 bg-white px-2 py-1.5 resize-y focus:outline-none focus:ring-2 focus:ring-indigo-100"
+                              className="w-full text-xs text-gray-700 rounded-lg border border-gray-200 bg-gray-50/80 px-2 py-1.5 mb-2 resize-y focus:outline-none focus:ring-2 focus:ring-indigo-200 focus:bg-white"
                             />
                           </div>
                         );
@@ -647,7 +692,7 @@ export default function Entradas() {
                     className="m-3 mt-0 flex items-center justify-center gap-2 py-2.5 rounded-xl border-2 border-dashed border-gray-200 text-gray-500 hover:border-indigo-300 hover:text-indigo-600 hover:bg-indigo-50/50 text-xs font-medium transition-colors"
                   >
                     <Plus size={16} />
-                    Nueva entrada
+                    Nueva entrada económica
                   </button>
                 </div>
               );

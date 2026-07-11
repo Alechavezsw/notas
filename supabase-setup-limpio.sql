@@ -4,7 +4,7 @@
 --         mis_empresas_data, entradas_data
 --
 -- billetera (id = 'default'), columnas JSONB:
---   cantidades      → { meta: number } meta de ahorro
+--   cantidades      → { meta, mes_vista, meses_historial, ... } preferencias de billetera
 --   dinero_actual   → [{ id, concepto, monto, fecha?, categoria? }]
 --   a_cobrar        → [{ id, concepto, monto, fecha?, cobrado?, montoAcreditado?, fechaCobro? }]
 --   gastos          → [{ id, fecha, concepto, categoria, monto }]
