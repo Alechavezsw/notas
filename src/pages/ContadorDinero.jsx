@@ -35,7 +35,6 @@ import {
   ShoppingBag,
   ChevronLeft,
   ChevronRight,
-  Calendar,
 } from 'lucide-react';
 
 const STORAGE_KEY = 'alenotes_billetera';
