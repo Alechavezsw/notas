@@ -97,6 +97,15 @@ function newTask() {
   return { id: `t-${Date.now()}-${Math.random().toString(36).slice(2, 5)}`, text: '', done: false };
 }
 
+function newObjetivo() {
+  return {
+    id: `o-${Date.now()}-${Math.random().toString(36).slice(2, 5)}`,
+    text: '',
+    monto: '',
+    done: false,
+  };
+}
+
 function newCard(columnId = 'otras') {
   return {
     id: `ent-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
@@ -109,6 +118,7 @@ function newCard(columnId = 'otras') {
     fechaObjetivo: '',
     notas: '',
     estado: 'activo',
+    objetivos: [newObjetivo()],
     tareas: [newTask()],
     updatedAt: new Date().toISOString(),
   };
@@ -120,6 +130,16 @@ function normalizeTasks(raw) {
     id: t?.id || `t-legacy-${i}`,
     text: t?.text ?? '',
     done: !!t?.done,
+  }));
+}
+
+function normalizeObjetivos(raw) {
+  if (!Array.isArray(raw) || raw.length === 0) return [newObjetivo()];
+  return raw.map((o, i) => ({
+    id: o?.id || `o-legacy-${i}`,
+    text: o?.text ?? '',
+    monto: o?.monto ?? '',
+    done: !!o?.done,
   }));
 }
 
@@ -144,6 +164,7 @@ function normalizeCard(c, columns) {
     fechaObjetivo: c.fechaObjetivo ?? '',
     notas: c.detalles ?? c.notas ?? '',
     estado,
+    objetivos: normalizeObjetivos(c.objetivos),
     tareas: normalizeTasks(c.tareas),
     updatedAt: c.updatedAt || new Date().toISOString(),
   };
@@ -273,6 +294,39 @@ export default function Entradas() {
     );
   }, []);
 
+  const patchObjetivo = useCallback((cardId, objetivoId, patch) => {
+    setCards((prev) =>
+      prev.map((c) => {
+        if (c.id !== cardId) return c;
+        return {
+          ...c,
+          objetivos: (c.objetivos || []).map((o) => (o.id === objetivoId ? { ...o, ...patch } : o)),
+          updatedAt: new Date().toISOString(),
+        };
+      })
+    );
+  }, []);
+
+  const addObjetivo = useCallback((cardId) => {
+    setCards((prev) =>
+      prev.map((c) =>
+        c.id === cardId
+          ? { ...c, objetivos: [...(c.objetivos || []), newObjetivo()], updatedAt: new Date().toISOString() }
+          : c
+      )
+    );
+  }, []);
+
+  const removeObjetivo = useCallback((cardId, objetivoId) => {
+    setCards((prev) =>
+      prev.map((c) => {
+        if (c.id !== cardId) return c;
+        const next = (c.objetivos || []).filter((o) => o.id !== objetivoId);
+        return { ...c, objetivos: next.length ? next : [newObjetivo()], updatedAt: new Date().toISOString() };
+      })
+    );
+  }, []);
+
   const addCard = useCallback((columnId) => {
     setCards((prev) => [newCard(columnId), ...prev]);
   }, []);
@@ -327,6 +381,7 @@ export default function Entradas() {
       if (filtroMes && c.mesProyeccion !== filtroMes) return false;
       if (!q) return true;
       const taskTexts = (c.tareas || []).map((t) => t.text);
+      const objetivoTexts = (c.objetivos || []).flatMap((o) => [o.text, o.monto]);
       return [
         c.titulo,
         c.monto,
@@ -336,6 +391,7 @@ export default function Entradas() {
         columnMeta(columns, c.columnId).label,
         ESTADOS.find((e) => e.id === c.estado)?.label,
         ...taskTexts,
+        ...objetivoTexts,
       ].some((f) => String(f || '').toLowerCase().includes(q));
     });
   }, [cards, busqueda, filtroMes, columns]);
@@ -532,6 +588,7 @@ export default function Entradas() {
                     ) : (
                       lista.map((card) => {
                         const ts = taskStats(card.tareas);
+                        const os = taskStats(card.objetivos);
                         return (
                           <div
                             key={card.id}
@@ -621,6 +678,72 @@ export default function Entradas() {
                               rows={2}
                               className="w-full text-xs text-gray-700 rounded-lg border border-violet-100 bg-violet-50/50 px-2 py-1.5 mb-2 resize-y focus:outline-none focus:ring-2 focus:ring-violet-200 focus:bg-white"
                             />
+
+                            <div className="rounded-lg border border-amber-100 bg-amber-50/50 p-2 mb-2">
+                              <div className="flex items-center justify-between mb-1.5">
+                                <span className="text-[10px] font-semibold uppercase tracking-wide text-amber-700 flex items-center gap-1">
+                                  <Target size={12} />
+                                  Objetivos
+                                </span>
+                                <span className="text-[10px] text-amber-600/80">{os.done}/{os.total}</span>
+                              </div>
+                              {os.total > 0 && (
+                                <div className="h-1 rounded-full bg-amber-100 mb-2 overflow-hidden">
+                                  <div className="h-full bg-amber-500 rounded-full transition-all" style={{ width: `${os.pct}%` }} />
+                                </div>
+                              )}
+                              <ul className="space-y-1.5">
+                                {(card.objetivos || []).map((obj) => (
+                                  <li key={obj.id} className="flex flex-col gap-1 group/obj">
+                                    <div className="flex items-start gap-1.5">
+                                      <button
+                                        type="button"
+                                        onClick={() => patchObjetivo(card.id, obj.id, { done: !obj.done })}
+                                        className="mt-0.5 text-amber-400 hover:text-amber-600 shrink-0"
+                                        aria-label={obj.done ? 'Marcar pendiente' : 'Marcar cumplido'}
+                                      >
+                                        {obj.done ? <CheckCircle2 size={16} className="text-amber-500" /> : <Circle size={16} />}
+                                      </button>
+                                      <input
+                                        type="text"
+                                        value={obj.text}
+                                        onChange={(e) => patchObjetivo(card.id, obj.id, { text: e.target.value })}
+                                        placeholder="Objetivo…"
+                                        className={`flex-1 bg-transparent text-xs focus:outline-none border-b border-transparent focus:border-amber-300 pb-0.5 min-w-0 ${obj.done ? 'text-gray-400 line-through' : 'text-gray-700'}`}
+                                      />
+                                      <button
+                                        type="button"
+                                        onClick={() => removeObjetivo(card.id, obj.id)}
+                                        className="p-0.5 text-gray-300 hover:text-red-500 opacity-0 group-hover/obj:opacity-100 shrink-0"
+                                        aria-label="Quitar objetivo"
+                                      >
+                                        <X size={12} />
+                                      </button>
+                                    </div>
+                                    <div className="flex items-center gap-1 pl-6">
+                                      <DollarSign size={12} className="text-amber-600 shrink-0" />
+                                      <span className="text-[10px] text-amber-700/80">$</span>
+                                      <input
+                                        type="number"
+                                        min={0}
+                                        value={obj.monto ?? ''}
+                                        onChange={(e) => patchObjetivo(card.id, obj.id, { monto: e.target.value })}
+                                        placeholder="Monto"
+                                        className={`flex-1 text-[11px] tabular-nums rounded-md border px-1.5 py-0.5 focus:outline-none focus:ring-1 focus:ring-amber-200 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none ${obj.done ? 'bg-gray-50 border-gray-100 text-gray-400' : 'bg-white border-amber-100 text-amber-900'}`}
+                                      />
+                                    </div>
+                                  </li>
+                                ))}
+                              </ul>
+                              <button
+                                type="button"
+                                onClick={() => addObjetivo(card.id)}
+                                className="mt-1.5 w-full text-[10px] text-amber-700/70 hover:text-amber-800 flex items-center justify-center gap-1 py-1"
+                              >
+                                <Plus size={12} />
+                                Añadir objetivo
+                              </button>
+                            </div>
 
                             <div className="rounded-lg border border-gray-100 bg-gray-50/80 p-2 mb-2">
                               <div className="flex items-center justify-between mb-1.5">

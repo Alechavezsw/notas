@@ -243,6 +243,11 @@ function formatEntradasCards(cards, columns) {
     lines.push(`- [${col}] ${c.titulo || 'Sin título'} · ${est}${c.monto ? ` · $${Number(c.monto) || 0}` : ''}${c.mesProyeccion ? ` · mes ${c.mesProyeccion}` : ''}`);
     if (c.detalles) lines.push(`  Detalles: ${String(c.detalles).slice(0, 160)}`);
     if (c.proyeccion) lines.push(`  Proyección: ${String(c.proyeccion).slice(0, 160)}`);
+    const objetivos = Array.isArray(c.objetivos) ? c.objetivos : [];
+    objetivos.slice(0, 5).forEach((o) => {
+      const monto = o.monto ? ` · $${Number(o.monto) || 0}` : '';
+      lines.push(`  ○ [${o.done ? 'x' : ' '}] ${(o.text || 'Objetivo').slice(0, 80)}${monto}`);
+    });
     const tareas = Array.isArray(c.tareas) ? c.tareas : [];
     tareas.slice(0, 5).forEach((t) => lines.push(`  · [${t.done ? 'x' : ' '}] ${(t.text || '').slice(0, 80)}`));
   });
