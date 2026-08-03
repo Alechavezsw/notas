@@ -132,6 +132,9 @@ const PASOS_SALUD_LABELS = {
   acne: 'Acné',
   vista: 'Vista',
   estres: 'Estrés',
+  hongos: 'Hongos',
+  vph: 'VPH',
+  otros: 'Otros',
 };
 
 function formatPasosSaludLine(r) {
@@ -144,8 +147,6 @@ function formatPasosSaludLine(r) {
       .map((k) => PASOS_SALUD_LABELS[k]);
     if (done.length) parts.push(`pasos: ${done.join(', ')}`);
   }
-  const otros = typeof r.pasosSaludOtros === 'string' ? r.pasosSaludOtros.trim() : '';
-  if (otros) parts.push(`otros: ${otros.length > 120 ? `${otros.slice(0, 120)}…` : otros}`);
   return parts.length ? ` · ${parts.join(' · ')}` : '';
 }
 

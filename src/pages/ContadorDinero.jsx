@@ -400,7 +400,7 @@ function EntradaLista({
   );
 }
 
-function ChecklistCobradoMesCorriente({ items, mesReferencia, onToggleCobrado }) {
+function ChecklistCobradoMesCorriente({ items, mesReferencia, onToggleCobrado, onUpdate }) {
   const delMes = useMemo(() => aCobrarMesCorriente(items, mesReferencia), [items, mesReferencia]);
   const esMesActual = mesReferencia === getMesActual();
   const pendientes = delMes.filter((it) => !it.cobrado);
@@ -434,37 +434,51 @@ function ChecklistCobradoMesCorriente({ items, mesReferencia, onToggleCobrado })
         </div>
       </div>
       <div className="space-y-1.5 max-h-64 overflow-y-auto">
-        {delMes.map((item) => {
-          const monto = Number(item.monto) || 0;
-          return (
-            <label
-              key={item.id}
-              className={`flex items-center gap-3 px-3 py-2.5 rounded-lg border cursor-pointer transition-colors ${
-                item.cobrado
-                  ? 'bg-white/60 border-amber-200 opacity-75'
-                  : 'bg-white border-gray-200 hover:border-amber-300 hover:bg-white'
+        {delMes.map((item) => (
+          <div
+            key={item.id}
+            className={`flex flex-wrap items-center gap-2 px-3 py-2.5 rounded-lg border transition-colors ${
+              item.cobrado
+                ? 'bg-white/60 border-amber-200 opacity-75'
+                : 'bg-white border-gray-200 hover:border-amber-300 hover:bg-white'
+            }`}
+          >
+            <input
+              type="checkbox"
+              checked={!!item.cobrado}
+              onChange={(e) => onToggleCobrado(item.id, e.target.checked)}
+              className="rounded border-gray-300 text-amber-600 focus:ring-amber-400 w-4 h-4 shrink-0"
+              title={item.cobrado ? 'Marcar pendiente' : 'Marcar cobrado'}
+            />
+            <input
+              type="text"
+              value={item.concepto || ''}
+              onChange={(e) => onUpdate?.(item.id, 'concepto', e.target.value)}
+              placeholder="Concepto"
+              className={`flex-1 min-w-[140px] bg-transparent text-sm focus:outline-none border-b border-transparent focus:border-amber-300 pb-0.5 ${
+                item.cobrado ? 'line-through text-gray-500' : 'text-gray-800'
               }`}
-            >
+            />
+            <input
+              type="date"
+              value={item.fecha || ''}
+              onChange={(e) => onUpdate?.(item.id, 'fecha', e.target.value)}
+              className="px-2 py-1 rounded-md border border-gray-200 text-xs text-gray-600 focus:outline-none focus:ring-1 focus:ring-amber-200"
+            />
+            <div className="flex items-center gap-1 shrink-0">
+              <span className={`text-sm ${item.cobrado ? 'text-gray-400' : 'text-amber-700'}`}>$</span>
               <input
-                type="checkbox"
-                checked={!!item.cobrado}
-                onChange={(e) => onToggleCobrado(item.id, e.target.checked)}
-                className="rounded border-gray-300 text-amber-600 focus:ring-amber-400 w-4 h-4 shrink-0"
+                type="number"
+                min={0}
+                value={item.monto ?? ''}
+                onChange={(e) => onUpdate?.(item.id, 'monto', e.target.value)}
+                className={`w-24 px-2 py-1 rounded-md border border-gray-200 text-sm font-bold tabular-nums focus:outline-none focus:ring-1 focus:ring-amber-200 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none ${
+                  item.cobrado ? 'text-gray-400' : 'text-amber-800'
+                }`}
               />
-              <span className={`flex-1 min-w-0 text-sm ${item.cobrado ? 'line-through text-gray-500' : 'text-gray-800'}`}>
-                {labelACobrar(item)}
-                {item.fecha && (
-                  <span className="text-gray-400 ml-2 text-xs">
-                    {new Date(`${item.fecha}T12:00:00`).toLocaleDateString('es-AR', { day: 'numeric', month: 'short' })}
-                  </span>
-                )}
-              </span>
-              <span className={`text-sm font-bold tabular-nums shrink-0 ${item.cobrado ? 'text-gray-400' : 'text-amber-700'}`}>
-                ${formatMoney(monto)}
-              </span>
-            </label>
-          );
-        })}
+            </div>
+          </div>
+        ))}
       </div>
     </div>
   );
@@ -479,6 +493,7 @@ function ListaACobrar({ items, onAdd, onUpdate, onDelete, onToggleCobrado, mesVi
           items={items}
           mesReferencia={mesReferencia}
           onToggleCobrado={onToggleCobrado}
+          onUpdate={onUpdate}
         />
       )}
       <EntradaLista
@@ -520,7 +535,7 @@ function BilleteraSection({ open, onToggle, headerClassName, sectionClassName = 
   );
 }
 
-function ChecklistMesCorriente({ items, mesReferencia, onTogglePagado }) {
+function ChecklistMesCorriente({ items, mesReferencia, onTogglePagado, onUpdate }) {
   const delMes = useMemo(() => deudasMesCorriente(items, mesReferencia), [items, mesReferencia]);
   const esMesActual = mesReferencia === getMesActual();
   const pendientes = delMes.filter((it) => !it.pagado);
@@ -554,42 +569,87 @@ function ChecklistMesCorriente({ items, mesReferencia, onTogglePagado }) {
         </div>
       </div>
       <div className="space-y-1.5 max-h-64 overflow-y-auto">
-        {delMes.map((item) => {
-          const monto = Number(item.monto) || 0;
-          return (
-            <label
-              key={item.id}
-              className={`flex items-center gap-3 px-3 py-2.5 rounded-lg border cursor-pointer transition-colors ${
-                item.pagado
-                  ? 'bg-white/60 border-emerald-200 opacity-75'
-                  : 'bg-white border-gray-200 hover:border-emerald-300 hover:bg-white'
-              }`}
+        {delMes.map((item) => (
+          <div
+            key={item.id}
+            className={`flex flex-wrap items-center gap-2 px-3 py-2.5 rounded-lg border transition-colors ${
+              item.pagado
+                ? 'bg-white/60 border-emerald-200 opacity-75'
+                : 'bg-white border-gray-200 hover:border-emerald-300 hover:bg-white'
+            }`}
+          >
+            <input
+              type="checkbox"
+              checked={!!item.pagado}
+              onChange={(e) => onTogglePagado(item.id, e.target.checked)}
+              className="rounded border-gray-300 text-emerald-600 focus:ring-emerald-400 w-4 h-4 shrink-0"
+              title={item.pagado ? 'Marcar pendiente' : 'Marcar pagada'}
+            />
+            <select
+              value={item.etiqueta || ''}
+              onChange={(e) => onUpdate?.(item.id, 'etiqueta', e.target.value)}
+              className="px-1.5 py-1 rounded-md border border-gray-200 text-[10px] font-medium uppercase tracking-wide text-slate-600 focus:outline-none focus:ring-1 focus:ring-emerald-200 max-w-[7.5rem] shrink-0"
+              title="Etiqueta"
             >
+              <option value="">Etiqueta</option>
+              {DEUDAS_ETIQUETAS.map((e) => (
+                <option key={e} value={e}>{e}</option>
+              ))}
+            </select>
+            <input
+              type="text"
+              value={item.acreedor || ''}
+              onChange={(e) => onUpdate?.(item.id, 'acreedor', e.target.value)}
+              placeholder="Acreedor"
+              className={`flex-1 min-w-[90px] max-w-[160px] bg-transparent text-sm focus:outline-none border-b border-transparent focus:border-emerald-300 pb-0.5 ${
+                item.pagado ? 'line-through text-gray-500' : 'text-gray-800'
+              }`}
+            />
+            <input
+              type="text"
+              value={item.concepto || ''}
+              onChange={(e) => onUpdate?.(item.id, 'concepto', e.target.value)}
+              placeholder="Concepto"
+              className={`flex-1 min-w-[90px] bg-transparent text-sm focus:outline-none border-b border-transparent focus:border-emerald-300 pb-0.5 ${
+                item.pagado ? 'line-through text-gray-500' : 'text-gray-700'
+              }`}
+            />
+            {item.enCuotas && (
+              <div className="flex items-center gap-1 text-xs text-gray-500 shrink-0">
+                <span>cuota</span>
+                <input
+                  type="number"
+                  min={1}
+                  value={item.cuotaNum ?? ''}
+                  onChange={(e) => onUpdate?.(item.id, 'cuotaNum', e.target.value)}
+                  className="w-10 px-1 py-0.5 rounded border border-gray-200 text-xs tabular-nums focus:outline-none focus:ring-1 focus:ring-emerald-200 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                  title="Cuota actual"
+                />
+                <span>/</span>
+                <input
+                  type="number"
+                  min={1}
+                  value={item.cuotasTotal ?? ''}
+                  onChange={(e) => onUpdate?.(item.id, 'cuotasTotal', e.target.value)}
+                  className="w-10 px-1 py-0.5 rounded border border-gray-200 text-xs tabular-nums focus:outline-none focus:ring-1 focus:ring-emerald-200 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                  title="Total de cuotas"
+                />
+              </div>
+            )}
+            <div className="flex items-center gap-1 shrink-0">
+              <span className={`text-sm ${item.pagado ? 'text-gray-400' : 'text-slate-600'}`}>$</span>
               <input
-                type="checkbox"
-                checked={!!item.pagado}
-                onChange={(e) => onTogglePagado(item.id, e.target.checked)}
-                className="rounded border-gray-300 text-emerald-600 focus:ring-emerald-400 w-4 h-4 shrink-0"
+                type="number"
+                min={0}
+                value={item.monto ?? ''}
+                onChange={(e) => onUpdate?.(item.id, 'monto', e.target.value)}
+                className={`w-24 px-2 py-1 rounded-md border border-gray-200 text-sm font-bold tabular-nums focus:outline-none focus:ring-1 focus:ring-emerald-200 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none ${
+                  item.pagado ? 'text-gray-400' : 'text-slate-800'
+                }`}
               />
-              <span className={`flex-1 min-w-0 text-sm ${item.pagado ? 'line-through text-gray-500' : 'text-gray-800'}`}>
-                {item.etiqueta && (
-                  <span className="text-[10px] font-medium uppercase tracking-wide text-slate-500 mr-2">
-                    {item.etiqueta}
-                  </span>
-                )}
-                {labelDeuda(item)}
-                {item.enCuotas && item.cuotaNum && item.cuotasTotal && (
-                  <span className="text-gray-400 ml-1">
-                    (cuota {item.cuotaNum}/{item.cuotasTotal})
-                  </span>
-                )}
-              </span>
-              <span className={`text-sm font-bold tabular-nums shrink-0 ${item.pagado ? 'text-gray-400' : 'text-slate-700'}`}>
-                ${formatMoney(monto)}
-              </span>
-            </label>
-          );
-        })}
+            </div>
+          </div>
+        ))}
       </div>
     </div>
   );
@@ -996,6 +1056,7 @@ function ListaDeudas({ items, onAdd, onUpdate, onDelete, onDuplicateNextMonth, o
           items={items}
           mesReferencia={mesReferencia}
           onTogglePagado={onTogglePagado}
+          onUpdate={onUpdate}
         />
       )}
 

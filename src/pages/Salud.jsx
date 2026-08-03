@@ -29,11 +29,14 @@ import {
   FlaskConical,
   HeartPulse,
   Laugh,
-  Sparkles,
   Eye,
   Brain,
+  Bug,
+  ShieldAlert,
+  Sparkles,
   MessageSquare,
-  Check,
+  CheckCircle2,
+  Circle,
 } from 'lucide-react';
 
 const STORAGE_KEY = 'alenotes_salud';
@@ -51,29 +54,38 @@ const MOOD_OPTIONS = [
   { value: 5, label: 'Muy bien', emoji: '😊', color: 'bg-emerald-100 text-emerald-700 border-emerald-200' },
 ];
 
-/** Pasos del día: áreas de salud a marcar como “atendidas hoy”. */
+/** Pasos del día: áreas de salud a marcar como tareas atendidas hoy. */
 const PASOS_SALUD = [
-  { key: 'higado', label: 'Hígado', Icon: Activity, chip: 'bg-amber-50 border-amber-200 text-amber-800', chipOn: 'bg-amber-100 border-amber-400' },
-  { key: 'colesterol', label: 'Colesterol', Icon: FlaskConical, chip: 'bg-violet-50 border-violet-200 text-violet-800', chipOn: 'bg-violet-100 border-violet-400' },
-  { key: 'corazon', label: 'Corazón', Icon: HeartPulse, chip: 'bg-rose-50 border-rose-200 text-rose-800', chipOn: 'bg-rose-100 border-rose-400' },
-  { key: 'peso', label: 'Peso', Icon: Scale, chip: 'bg-sky-50 border-sky-200 text-sky-800', chipOn: 'bg-sky-100 border-sky-400' },
-  { key: 'dentadura', label: 'Dentadura', Icon: Laugh, chip: 'bg-teal-50 border-teal-200 text-teal-800', chipOn: 'bg-teal-100 border-teal-400' },
-  { key: 'acne', label: 'Acné', Icon: Sparkles, chip: 'bg-fuchsia-50 border-fuchsia-200 text-fuchsia-800', chipOn: 'bg-fuchsia-100 border-fuchsia-400' },
-  { key: 'vista', label: 'Vista', Icon: Eye, chip: 'bg-cyan-50 border-cyan-200 text-cyan-800', chipOn: 'bg-cyan-100 border-cyan-400' },
-  { key: 'estres', label: 'Estrés', Icon: Brain, chip: 'bg-indigo-50 border-indigo-200 text-indigo-800', chipOn: 'bg-indigo-100 border-indigo-400' },
+  { key: 'higado', label: 'Hígado', Icon: Activity },
+  { key: 'colesterol', label: 'Colesterol', Icon: FlaskConical },
+  { key: 'corazon', label: 'Corazón', Icon: HeartPulse },
+  { key: 'peso', label: 'Peso', Icon: Scale },
+  { key: 'dentadura', label: 'Dentadura', Icon: Laugh },
+  { key: 'acne', label: 'Acné', Icon: Sparkles },
+  { key: 'vista', label: 'Vista', Icon: Eye },
+  { key: 'estres', label: 'Estrés', Icon: Brain },
+  { key: 'hongos', label: 'Hongos', Icon: Bug },
+  { key: 'vph', label: 'VPH', Icon: ShieldAlert },
+  { key: 'otros', label: 'Otros', Icon: MessageSquare },
 ];
 
 function tienePasosSalud(r) {
   if (!r || typeof r !== 'object') return false;
   const p = r.pasosSalud;
   if (p && typeof p === 'object' && Object.values(p).some(Boolean)) return true;
-  if (typeof r.pasosSaludOtros === 'string' && r.pasosSaludOtros.trim()) return true;
   return false;
 }
 
 function labelsPasosActivos(r) {
   if (!r?.pasosSalud || typeof r.pasosSalud !== 'object') return [];
   return PASOS_SALUD.filter((item) => r.pasosSalud[item.key]).map((item) => item.label);
+}
+
+function pasosStats(pasosSalud) {
+  const map = pasosSalud && typeof pasosSalud === 'object' ? pasosSalud : {};
+  const done = PASOS_SALUD.filter((item) => map[item.key]).length;
+  const total = PASOS_SALUD.length;
+  return { done, total, pct: total ? Math.round((done / total) * 100) : 0 };
 }
 
 function getTodayKey() {
@@ -94,7 +106,6 @@ export default function Salud() {
     horasSueno: '',
     animo: null,
     pasosSalud: {},
-    pasosSaludOtros: '',
   };
 
   useEffect(() => {
@@ -171,6 +182,8 @@ export default function Salud() {
     const prevMap = hoy.pasosSalud && typeof hoy.pasosSalud === 'object' ? hoy.pasosSalud : {};
     updateHoy('pasosSalud', { ...prevMap, [key]: !prevMap[key] });
   };
+
+  const pasosHoy = pasosStats(hoy.pasosSalud);
 
   const diasConDatos = useMemo(
     () =>
@@ -262,42 +275,50 @@ export default function Salud() {
             <div className="w-11 h-11 rounded-xl bg-emerald-100 flex items-center justify-center">
               <ListChecks size={22} className="text-emerald-600" />
             </div>
-            <div>
-              <h2 className="font-semibold text-gray-800">Pasos de salud</h2>
-              <p className="text-xs text-gray-500">Marcá las áreas en las que hoy te ocupaste o hiciste seguimiento</p>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center justify-between gap-2">
+                <h2 className="font-semibold text-gray-800">Pasos de salud</h2>
+                <span className="text-xs tabular-nums text-emerald-700 font-medium">{pasosHoy.done}/{pasosHoy.total}</span>
+              </div>
+              <p className="text-xs text-gray-500">Marcá como tarea cada área en la que hoy te ocupaste</p>
             </div>
           </div>
-          <div className="flex flex-wrap gap-2">
-            {PASOS_SALUD.map(({ key, label, Icon, chip, chipOn }) => {
+          {pasosHoy.total > 0 && (
+            <div className="h-1.5 rounded-full bg-emerald-100 mb-3 overflow-hidden">
+              <div
+                className="h-full bg-emerald-500 rounded-full transition-all"
+                style={{ width: `${pasosHoy.pct}%` }}
+              />
+            </div>
+          )}
+          <ul className="space-y-1">
+            {PASOS_SALUD.map(({ key, label, Icon }) => {
               const on = !!(hoy.pasosSalud && hoy.pasosSalud[key]);
               return (
-                <button
-                  key={key}
-                  type="button"
-                  onClick={() => togglePasoSalud(key)}
-                  className={`flex items-center gap-2 px-3 py-2.5 rounded-xl border-2 text-sm font-medium transition-all ${
-                    on ? `${chipOn} shadow-sm` : `${chip} border-opacity-80 hover:border-gray-300`
-                  }`}
-                >
-                  {on ? <Check size={18} className="shrink-0" /> : <Icon size={18} className="shrink-0 opacity-80" />}
-                  {label}
-                </button>
+                <li key={key}>
+                  <button
+                    type="button"
+                    onClick={() => togglePasoSalud(key)}
+                    className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl border text-left transition-all ${
+                      on
+                        ? 'bg-emerald-50 border-emerald-200 text-emerald-900'
+                        : 'bg-gray-50/80 border-gray-100 text-gray-700 hover:border-gray-200 hover:bg-white'
+                    }`}
+                  >
+                    {on ? (
+                      <CheckCircle2 size={20} className="text-emerald-500 shrink-0" />
+                    ) : (
+                      <Circle size={20} className="text-gray-300 shrink-0" />
+                    )}
+                    <Icon size={18} className={`shrink-0 ${on ? 'text-emerald-600' : 'text-gray-400'}`} />
+                    <span className={`text-sm font-medium flex-1 ${on ? 'line-through decoration-emerald-300/80' : ''}`}>
+                      {label}
+                    </span>
+                  </button>
+                </li>
               );
             })}
-          </div>
-          <div className="mt-4">
-            <label className="flex items-center gap-2 text-sm font-medium text-gray-700 mb-2">
-              <MessageSquare size={16} className="text-gray-400" />
-              Otros
-            </label>
-            <textarea
-              rows={2}
-              placeholder="Ej. tiroides, alergias, medicación…"
-              value={typeof hoy.pasosSaludOtros === 'string' ? hoy.pasosSaludOtros : ''}
-              onChange={(e) => updateHoy('pasosSaludOtros', e.target.value)}
-              className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-200 focus:border-emerald-300 resize-y min-h-[4rem]"
-            />
-          </div>
+          </ul>
         </section>
 
         {/* Peso */}
@@ -489,7 +510,6 @@ export default function Salud() {
                   month: 'short',
                 });
                 const pasosLabels = labelsPasosActivos(r);
-                const otrosTxt = typeof r.pasosSaludOtros === 'string' ? r.pasosSaludOtros.trim() : '';
                 return (
                   <div key={key} className="px-5 py-3 flex flex-wrap items-center gap-3 text-sm">
                     <span className="font-medium text-gray-500 w-28">{dateStr}</span>
@@ -503,11 +523,6 @@ export default function Salud() {
                     )}
                     {pasosLabels.length > 0 && (
                       <span className="text-emerald-700 text-xs font-medium">Pasos: {pasosLabels.join(', ')}</span>
-                    )}
-                    {otrosTxt && (
-                      <span className="text-gray-600 text-xs max-w-full" title={otrosTxt}>
-                        Otros: {otrosTxt.length > 48 ? `${otrosTxt.slice(0, 48)}…` : otrosTxt}
-                      </span>
                     )}
                   </div>
                 );
